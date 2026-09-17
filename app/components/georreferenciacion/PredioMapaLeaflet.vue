@@ -637,10 +637,9 @@ function esperarCargaTiles(): Promise<void> {
 
 /**
  * Captura la vista actual del mapa (tiles, polígono trazado, marcadores y rosa de los vientos) en base64 para reportes PDF
- * Permite aplicar un desplazamiento de zoom (zoomDelta: por defecto 1 nivel arriba / alejado) para que la captura
- * abarque más calles y referencias circundantes de localización notarial.
+ * @param configZoom Nivel de zoom deseado (17 por defecto, 18, 16, etc.) o 'actual' para capturar la vista de pantalla.
  */
-async function capturarMapaBase64(zoomDelta: number = 1): Promise<string | null> {
+async function capturarMapaBase64(configZoom: number | 'actual' = 17): Promise<string | null> {
   if (!mapContainer.value || !mapInstance) return null
 
   try {
@@ -651,19 +650,40 @@ async function capturarMapaBase64(zoomDelta: number = 1): Promise<string | null>
     const prevCenter = mapInstance.getCenter()
     const prevZoom = mapInstance.getZoom()
 
-    // Para la cédula notarial, si zoomDelta > 0, alejamos la vista ("un zoom arriba")
-    // y centramos en el polígono del predio para garantizar que abarque
-    // más calles y manzanas circundantes como referencia de ubicación.
     let targetCenter = prevCenter
-    if (polygonLayer && typeof polygonLayer.getBounds === 'function') {
-      try {
-        targetCenter = polygonLayer.getBounds().getCenter()
-      } catch {
+    let targetZoom = prevZoom
+
+    if (configZoom === 'actual') {
+      // Usar exactamente la perspectiva actual del mapa en pantalla
+      targetCenter = prevCenter
+      targetZoom = prevZoom
+    } else if (typeof configZoom === 'number' && configZoom <= 5) {
+      // Delta relativo (compatibilidad previa)
+      targetCenter = (polygonLayer && typeof polygonLayer.getBounds === 'function')
+        ? polygonLayer.getBounds().getCenter()
+        : prevCenter
+      targetZoom = Math.max(prevZoom - configZoom, 11)
+    } else if (typeof configZoom === 'number') {
+      // Zoom absoluto especificado (17 por defecto, 18, 16, etc.)
+      if (polygonLayer && typeof polygonLayer.getBounds === 'function') {
+        try {
+          targetCenter = polygonLayer.getBounds().getCenter()
+          let naturalFitZoom = 19
+          if (typeof mapInstance.getBoundsZoom === 'function') {
+            naturalFitZoom = mapInstance.getBoundsZoom(polygonLayer.getBounds(), false, [40, 40])
+          }
+          // Para predios muy extensos (e.g. ranchos rurales), no exceder el zoom natural que encuadra el polígono
+          targetZoom = Math.min(configZoom, naturalFitZoom)
+        } catch {
+          targetCenter = prevCenter
+          targetZoom = configZoom
+        }
+      } else {
         targetCenter = prevCenter
+        targetZoom = configZoom
       }
     }
 
-    const targetZoom = Math.max(prevZoom - zoomDelta, 11)
     const requiereCambioVista =
       targetZoom !== prevZoom ||
       Math.abs(targetCenter.lat - prevCenter.lat) > 0.000001 ||

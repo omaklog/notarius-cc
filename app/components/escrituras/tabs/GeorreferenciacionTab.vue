@@ -96,19 +96,69 @@
 
         <!-- Acciones Principales del Predio Activo -->
         <div v-if="predioActivo" class="d-flex align-center gap-2 flex-wrap">
-          <!-- Botón Cédula Técnica Notarial PDF -->
-          <v-btn
-            color="secondary"
-            variant="tonal"
-            size="small"
-            prepend-icon="mdi-file-pdf-box"
-            class="text-capitalize font-weight-bold"
-            :loading="generandoPdf"
-            :disabled="guardando || cargando"
-            @click="abrirModalReportePdf"
-          >
-            Cédula PDF
-          </v-btn>
+          <!-- Botón Cédula Técnica Notarial PDF con Configuración de Zoom previa -->
+          <div class="d-inline-flex align-center">
+            <v-btn
+              color="secondary"
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-file-pdf-box"
+              class="text-capitalize font-weight-bold rounded-e-0"
+              :loading="generandoPdf"
+              :disabled="guardando || cargando"
+              @click="abrirModalReportePdf"
+            >
+              Cédula PDF (Zoom {{ zoomCroquisPdf === 'actual' ? 'Actual' : zoomCroquisPdf }})
+            </v-btn>
+            <v-menu location="bottom end">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  color="secondary"
+                  variant="tonal"
+                  size="small"
+                  icon="mdi-tune-variant"
+                  class="rounded-s-0 border-s px-0"
+                  style="min-width: 28px; width: 28px;"
+                  title="Configurar nivel de zoom antes de generar"
+                  v-bind="menuProps"
+                />
+              </template>
+              <v-card min-width="290" class="pa-2">
+                <div class="px-2 pt-1 pb-1 font-weight-bold text-caption text-uppercase text-grey-darken-3">
+                  Configurar Zoom de Captura PDF
+                </div>
+                <div class="px-2 pb-2 text-caption text-grey-darken-1">
+                  Elige la escala de calles antes de generar el reporte:
+                </div>
+                <v-list density="compact" class="py-0">
+                  <v-list-item
+                    v-for="opt in opcionesZoom"
+                    :key="opt.value"
+                    :active="zoomCroquisPdf === opt.value"
+                    color="primary"
+                    rounded
+                    class="mb-1"
+                    @click="zoomCroquisPdf = opt.value"
+                  >
+                    <template #prepend>
+                      <v-icon
+                        :icon="zoomCroquisPdf === opt.value ? 'mdi-radiobox-marked' : 'mdi-radiobox-blank'"
+                        size="18"
+                        color="primary"
+                        class="mr-2"
+                      />
+                    </template>
+                    <v-list-item-title class="text-caption font-weight-bold">
+                      {{ opt.titulo }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle class="text-caption text-grey-darken-1">
+                      {{ opt.descripcion }}
+                    </v-list-item-subtitle>
+                  </v-list-item>
+                </v-list>
+              </v-card>
+            </v-menu>
+          </div>
 
           <!-- Botón Pantalla Completa -->
           <v-btn
@@ -368,12 +418,34 @@
             Cédula Técnica Notarial de Georreferenciación — Vista Previa
           </v-toolbar-title>
           <v-spacer />
+
+          <!-- Selector de Zoom en tiempo real dentro del modal -->
+          <div class="d-flex align-center mr-3">
+            <span class="text-caption mr-2 font-weight-medium text-grey-lighten-2">Zoom Croquis:</span>
+            <v-btn-toggle
+              v-model="zoomCroquisPdf"
+              mandatory
+              density="compact"
+              color="secondary"
+              divided
+              size="x-small"
+              :disabled="generandoPdf"
+              @update:model-value="cambiarZoomYRegenerarPdf"
+            >
+              <v-btn :value="18" size="x-small" title="Zoom 18: Lote y calle frontal">18 (Cercano)</v-btn>
+              <v-btn :value="17" size="x-small" title="Zoom 17: Manzana y calles aledañas (Por defecto)">17</v-btn>
+              <v-btn :value="16" size="x-small" title="Zoom 16: Panorámico">16 (Amplio)</v-btn>
+              <v-btn value="actual" size="x-small" title="Perspectiva actual en pantalla">Actual</v-btn>
+            </v-btn-toggle>
+          </div>
+
           <v-btn
             variant="elevated"
             color="secondary"
             size="small"
             prepend-icon="mdi-printer"
             class="text-capitalize font-weight-bold mr-2"
+            :loading="generandoPdf"
             @click="imprimirCedulaPdf"
           >
             Imprimir / Descargar PDF
@@ -496,6 +568,30 @@ const loteAEliminar = ref<PredioItem | null>(null)
 const modalPdfVisible = ref(false)
 const generandoPdf = ref(false)
 const htmlReportePdf = ref('')
+const zoomCroquisPdf = ref<number | 'actual'>(17)
+
+const opcionesZoom = [
+  {
+    value: 18,
+    titulo: 'Zoom 18 — Cercano',
+    descripcion: 'Mayor detalle del predio y calles inmediatas'
+  },
+  {
+    value: 17,
+    titulo: 'Zoom 17 — Equilibrado (Por defecto)',
+    descripcion: 'Encuadre óptimo de la manzana y calles aledañas'
+  },
+  {
+    value: 16,
+    titulo: 'Zoom 16 — Panorámico',
+    descripcion: 'Mayor cobertura de calles, avenidas y colonia'
+  },
+  {
+    value: 'actual',
+    titulo: 'Vista Actual del Mapa',
+    descripcion: 'Capturar el mapa exactamente como se ve en pantalla'
+  }
+]
 
 // Feedback
 const snackbar = ref({
@@ -738,10 +834,10 @@ async function abrirModalReportePdf() {
   generandoPdf.value = true
 
   try {
-    // Capturar mapa base64 con perspectiva ampliada (un zoom arriba) para referencias de calles
+    // Capturar mapa base64 con el nivel de zoom configurado
     let mapaBase64: string | null = null
     if (mapaRef.value?.capturarMapaBase64) {
-      mapaBase64 = await mapaRef.value.capturarMapaBase64(1)
+      mapaBase64 = await mapaRef.value.capturarMapaBase64(zoomCroquisPdf.value)
     }
 
     const acto = datosEscritura.value?.actos_juridicos?.nombre || 'Acto Traslativo de Dominio'
@@ -774,6 +870,10 @@ async function abrirModalReportePdf() {
   } finally {
     generandoPdf.value = false
   }
+}
+
+async function cambiarZoomYRegenerarPdf() {
+  await abrirModalReportePdf()
 }
 
 function imprimirCedulaPdf() {
