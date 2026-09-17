@@ -143,9 +143,6 @@
                 <v-icon icon="mdi-map-marker-radius-outline" size="20" class="mr-1.5 text-primary" />
                 <span>Delimitación Poligonal del Terreno</span>
               </div>
-              <v-chip size="x-small" color="secondary" variant="tonal">
-                {{ coordenadasAnillo.length }} vértices delimitados
-              </v-chip>
             </div>
 
             <!-- Mapa montado bajo ClientOnly para evitar errores SSR de Leaflet -->

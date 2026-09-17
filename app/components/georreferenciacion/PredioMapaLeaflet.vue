@@ -29,6 +29,19 @@
         </template>
       </v-text-field>
 
+      <!-- Botón GPS: Ubicación actual del dispositivo -->
+      <v-btn
+        icon
+        size="small"
+        variant="tonal"
+        color="primary"
+        title="Centrar en mi ubicación actual"
+        :loading="obteniendoUbicacion"
+        @click="obtenerUbicacionDispositivo"
+      >
+        <v-icon icon="mdi-crosshairs-gps" size="18" />
+      </v-btn>
+
       <!-- Selector de Capa (Calles / Satélite) -->
       <v-btn-toggle v-model="capaActiva" mandatory density="compact" color="primary">
         <v-btn value="calles" size="small" prepend-icon="mdi-map">
@@ -122,10 +135,12 @@
 
     <div class="d-flex align-center justify-space-between text-caption text-grey-darken-1 mt-1.5 px-1">
       <div>
-        <span v-if="vertices.length >= 3">
-          <strong class="text-primary">{{ vertices.length }} vértices delimitados</strong> • Arrastra las esquinas para ajustar
+        <span v-if="vertices.length >= 3 && !dibujando">
+          <strong class="text-primary">{{ vertices.length }} vértices delimitados</strong> • Arrastra las esquinas para ajustar linderos
         </span>
-        <span v-else-if="dibujando">Colocando puntos... Haz clic para agregar esquinas.</span>
+        <span v-else-if="dibujando">
+          Colocando esquinas ({{ vertices.length }} colocadas)... Puedes arrastrar cualquier punto para reposicionarlo antes de cerrar.
+        </span>
         <span v-else>Sin polígono trazado aún. Presiona "Trazar Polígono" para comenzar.</span>
       </div>
       <div class="font-size-xs text-grey">OpenStreetMap &copy; Esri World Imagery</div>
@@ -177,9 +192,34 @@ const resultadosBusqueda = ref<ResultadoBusquedaGeografica[]>([])
 const dibujando = ref(false)
 // Vértices locales: [[lng, lat], ...]
 const vertices = ref<[number, number][]>([])
+const obteniendoUbicacion = ref(false)
 
 // Coordenadas por defecto (Centro de México)
 const CENTRO_DEFAULT: [number, number] = [19.432608, -99.133209] // CDMX [lat, lng]
+
+function obtenerUbicacionDispositivo() {
+  if (typeof window === 'undefined' || !navigator.geolocation) return
+
+  obteniendoUbicacion.value = true
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      obteniendoUbicacion.value = false
+      if (!mapInstance) return
+      // No reubicar si ya el usuario comenzó a dibujar o ya hay un polígono dibujado
+      if (vertices.value.length > 0) return
+
+      const lat = pos.coords.latitude
+      const lng = pos.coords.longitude
+      mapInstance.setView([lat, lng], 16)
+    },
+    (err) => {
+      obteniendoUbicacion.value = false
+      console.warn('Geolocalización no disponible o denegada:', err?.message)
+    },
+    { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+  )
+}
 
 onMounted(async () => {
   if (typeof window === 'undefined') return
@@ -242,6 +282,11 @@ function inicializarMapa() {
 
   sincronizarModelo()
   renderizarOtrosPredios()
+
+  // Si no hay polígono trazado aún, intentar centrar en la ubicación del dispositivo
+  if (!props.modelValue || props.modelValue.length < 3) {
+    obtenerUbicacionDispositivo()
+  }
 }
 
 // Cambiar entre capa calles y satélite
@@ -304,29 +349,57 @@ function actualizarCapaTemporal() {
 
   if (tempPolylineLayer) {
     mapInstance.removeLayer(tempPolylineLayer)
+    tempPolylineLayer = null
   }
+
+  markerLayers.forEach((m) => mapInstance.removeLayer(m))
+  markerLayers = []
 
   const latlngs = vertices.value.map(([lng, lat]) => [lat, lng])
 
-  tempPolylineLayer = L.polyline(latlngs, {
-    color: '#1B3A5F',
-    weight: 3,
-    dashArray: '5, 5'
-  }).addTo(mapInstance)
+  if (latlngs.length > 1) {
+    tempPolylineLayer = L.polyline(latlngs, {
+      color: '#1B3A5F',
+      weight: 3,
+      dashArray: '5, 5'
+    }).addTo(mapInstance)
+  }
 
-  // Crear marcador para el nuevo vértice
-  const ultimo = vertices.value[vertices.value.length - 1]
-  const idx = vertices.value.length - 1
+  // Icono arrastrable de vértice durante el trazo
+  const vertexDrawingIcon = L.divIcon({
+    className: 'vertex-marker-icon',
+    html: `<div style="width: 16px; height: 16px; border-radius: 50%; background-color: #A9762E; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.6); cursor: grab;"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+  })
 
-  const marker = L.circleMarker([ultimo[1], ultimo[0]], {
-    radius: 6,
-    fillColor: '#A9762E',
-    color: '#ffffff',
-    weight: 2,
-    fillOpacity: 1
-  }).addTo(mapInstance)
+  vertices.value.forEach((coord, idx) => {
+    const [lng, lat] = coord
+    const marker = L.marker([lat, lng], {
+      draggable: props.editable,
+      icon: vertexDrawingIcon
+    }).addTo(mapInstance)
 
-  markerLayers.push(marker)
+    // Prevenir que el clic en el vértice agregue otro punto en el mapa
+    marker.on('click', (e: any) => {
+      L.DomEvent.stopPropagation(e)
+    })
+
+    // Actualizar coordenadas en tiempo real al arrastrar el vértice
+    marker.on('drag', (e: any) => {
+      const newLatLng = e.latlng
+      const newLng = Math.round(newLatLng.lng * 1000000) / 1000000
+      const newLat = Math.round(newLatLng.lat * 1000000) / 1000000
+
+      vertices.value[idx] = [newLng, newLat]
+
+      if (tempPolylineLayer) {
+        tempPolylineLayer.setLatLngs(vertices.value.map(([g, t]) => [t, g]))
+      }
+    })
+
+    markerLayers.push(marker)
+  })
 }
 
 function finalizarDibujo() {
@@ -392,18 +465,47 @@ function dibujarPoligonoFinal(coords: [number, number][]) {
     fillOpacity: 0.35
   }).addTo(mapInstance)
 
-  // Marcadores arrastrables en cada vértice (excepto el duplicado de cierre)
-  const n = coords.length > 3 && coords[0][0] === coords[coords.length - 1][0] ? coords.length - 1 : coords.length
+  // Marcadores arrastrables en cada vértice (excepto el duplicado de cierre si existe)
+  const esCerrado =
+    coords.length > 3 &&
+    coords[0][0] === coords[coords.length - 1][0] &&
+    coords[0][1] === coords[coords.length - 1][1]
+  const n = esCerrado ? coords.length - 1 : coords.length
+
+  const finalVertexIcon = L.divIcon({
+    className: 'vertex-marker-icon',
+    html: `<div style="width: 16px; height: 16px; border-radius: 50%; background-color: #1B3A5F; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.6); cursor: grab;"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+  })
 
   for (let i = 0; i < n; i++) {
     const [lng, lat] = coords[i]
-    const marker = L.circleMarker([lat, lng], {
-      radius: 7,
-      fillColor: '#1B3A5F',
-      color: '#ffffff',
-      weight: 2,
-      fillOpacity: 1
+    const marker = L.marker([lat, lng], {
+      draggable: props.editable,
+      icon: finalVertexIcon
     }).addTo(mapInstance)
+
+    marker.on('click', (e: any) => {
+      L.DomEvent.stopPropagation(e)
+    })
+
+    marker.on('drag', (e: any) => {
+      const newLatLng = e.latlng
+      const newLng = Math.round(newLatLng.lng * 1000000) / 1000000
+      const newLat = Math.round(newLatLng.lat * 1000000) / 1000000
+
+      vertices.value[i] = [newLng, newLat]
+
+      // Si es el primer vértice y el polígono es cerrado, sincronizar el último de cierre
+      if (i === 0 && esCerrado) {
+        vertices.value[vertices.value.length - 1] = [newLng, newLat]
+      }
+
+      polygonLayer.setLatLngs(vertices.value.map(([g, t]) => [t, g]))
+      emit('update:modelValue', [...vertices.value])
+      emit('change', [...vertices.value])
+    })
 
     markerLayers.push(marker)
   }
@@ -490,5 +592,10 @@ function seleccionarResultado(r: ResultadoBusquedaGeografica) {
 .resultados-busqueda-card {
   top: 48px;
   left: 0;
+}
+
+:deep(.vertex-marker-icon) {
+  background: transparent !important;
+  border: none !important;
 }
 </style>
