@@ -95,7 +95,33 @@
         </div>
 
         <!-- Acciones Principales del Predio Activo -->
-        <div v-if="predioActivo" class="d-flex align-center gap-2">
+        <div v-if="predioActivo" class="d-flex align-center gap-2 flex-wrap">
+          <!-- Botón Cédula Técnica Notarial PDF -->
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-file-pdf-box"
+            class="text-capitalize font-weight-bold"
+            :loading="generandoPdf"
+            :disabled="guardando || cargando"
+            @click="abrirModalReportePdf"
+          >
+            Cédula PDF
+          </v-btn>
+
+          <!-- Botón Pantalla Completa -->
+          <v-btn
+            variant="outlined"
+            color="primary"
+            size="small"
+            :prepend-icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
+            class="text-capitalize font-weight-medium"
+            @click="toggleFullscreen"
+          >
+            {{ isFullscreen ? 'Salir Pantalla Completa' : 'Pantalla Completa' }}
+          </v-btn>
+
           <v-btn
             v-if="!readOnly && predioActivo.id"
             variant="text"
@@ -136,7 +162,7 @@
     <div v-else-if="predioActivo">
       <v-row density="comfortable">
         <!-- Columna Izquierda: Mapa Interactivo Leaflet -->
-        <v-col cols="12" lg="8">
+        <v-col cols="12" :lg="isFullscreen ? 8 : 8">
           <v-card variant="outlined" class="rounded-lg pa-3 bg-surface d-flex flex-column h-100">
             <div class="d-flex align-center justify-space-between mb-2">
               <div class="text-subtitle-2 font-weight-bold text-grey-darken-4 d-flex align-center">
@@ -146,9 +172,10 @@
             </div>
 
             <!-- Mapa montado bajo ClientOnly para evitar errores SSR de Leaflet -->
-            <div class="flex-grow-1" style="min-height: 520px;">
+            <div class="flex-grow-1" :style="{ minHeight: isFullscreen ? '620px' : '500px' }">
               <ClientOnly>
                 <PredioMapaLeaflet
+                  ref="mapaRef"
                   v-model="coordenadasAnillo"
                   :predios="predios"
                   :predio-activo-id="predioActivo.id"
@@ -157,7 +184,7 @@
                 />
                 <template #fallback>
                   <v-sheet
-                    height="520"
+                    :height="isFullscreen ? 620 : 500"
                     color="grey-lighten-4"
                     class="d-flex flex-column align-center justify-center rounded-lg border border-dashed border-grey-lighten-2"
                   >
@@ -198,7 +225,7 @@
         </v-col>
 
         <!-- Columna Derecha: Ficha Técnica, Fachada y Colindancias -->
-        <v-col cols="12" lg="4">
+        <v-col cols="12" :lg="isFullscreen ? 4 : 4">
           <div class="d-flex flex-column gap-3">
             <!-- Tarjeta: Datos Generales del Lote -->
             <v-card variant="outlined" class="pa-4 rounded-lg bg-surface">
@@ -332,6 +359,54 @@
       </v-card>
     </v-dialog>
 
+    <!-- Modal de Previsualización e Impresión de Cédula PDF -->
+    <v-dialog v-model="modalPdfVisible" max-width="920" scrollable>
+      <v-card>
+        <v-toolbar color="primary" density="compact" dark class="px-3">
+          <v-icon icon="mdi-file-document-outline" class="mr-2" />
+          <v-toolbar-title class="text-subtitle-2 font-weight-bold">
+            Cédula Técnica Notarial de Georreferenciación — Vista Previa
+          </v-toolbar-title>
+          <v-spacer />
+          <v-btn
+            variant="elevated"
+            color="secondary"
+            size="small"
+            prepend-icon="mdi-printer"
+            class="text-capitalize font-weight-bold mr-2"
+            @click="imprimirCedulaPdf"
+          >
+            Imprimir / Descargar PDF
+          </v-btn>
+          <v-btn icon="mdi-close" size="small" variant="text" @click="modalPdfVisible = false" />
+        </v-toolbar>
+        <v-card-text class="pa-0" style="height: 75vh; background-color: #525659;">
+          <iframe
+            :srcdoc="htmlReportePdf"
+            style="width: 100%; height: 100%; border: none; background: white;"
+          />
+        </v-card-text>
+        <v-card-actions class="pa-3 bg-surface border-t">
+          <span class="text-caption text-grey-darken-1 ml-2">
+            La cédula técnica incorpora el croquis del polígono, medidas, colindancias y fotografía de fachada.
+          </span>
+          <v-spacer />
+          <v-btn variant="text" color="grey-darken-2" class="text-capitalize" @click="modalPdfVisible = false">
+            Cerrar
+          </v-btn>
+          <v-btn
+            variant="elevated"
+            color="primary"
+            class="text-capitalize font-weight-bold"
+            prepend-icon="mdi-printer"
+            @click="imprimirCedulaPdf"
+          >
+            Imprimir / Descargar PDF
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar de Feedback -->
     <v-snackbar v-model="snackbar.visible" :color="snackbar.color" :timeout="3500">
       {{ snackbar.texto }}
@@ -343,10 +418,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useSupabaseClient } from '#imports'
 import type { PredioItem, ColindanciaItem, GeoJSONPolygon } from '~/types/predios'
 import { usePredios } from '~/composables/usePredios'
 import { calcularAreaPoligonoM2, calcularCentroide } from '~/utils/geometriaUtils'
+import { generarHtmlCedulaGeorreferenciacion } from '~/utils/pdfCedulaGeorreferenciacion'
 import PredioMapaLeaflet from '~/components/georreferenciacion/PredioMapaLeaflet.vue'
 import PredioColindanciasForm from '~/components/georreferenciacion/PredioColindanciasForm.vue'
 import PredioFachadaUpload from '~/components/georreferenciacion/PredioFachadaUpload.vue'
@@ -356,16 +433,24 @@ const props = withDefaults(
     escrituraId: string
     actoJuridicoId?: string
     readOnly?: boolean
+    isFullscreen?: boolean
   }>(),
   {
-    readOnly: false
+    readOnly: false,
+    isFullscreen: false
   }
 )
 
 const emit = defineEmits<{
   'status-change': []
   'cambio-cumplimiento': []
+  'abrir-fullscreen': []
+  'cerrar-fullscreen': []
+  'toggle-fullscreen': []
 }>()
+
+const supabase = useSupabaseClient()
+const mapaRef = ref<any>(null)
 
 const {
   predios,
@@ -378,6 +463,9 @@ const {
   guardarPredio,
   eliminarPredio
 } = usePredios()
+
+// Datos complementarios de la escritura para la Cédula Notarial
+const datosEscritura = ref<any>(null)
 
 // Formulario local del predio activo
 const predioForm = ref<PredioItem>({
@@ -404,6 +492,11 @@ const coordenadasAnillo = ref<[number, number][]>([])
 const dialogoEliminarVisible = ref(false)
 const loteAEliminar = ref<PredioItem | null>(null)
 
+// Modal de Cédula PDF
+const modalPdfVisible = ref(false)
+const generandoPdf = ref(false)
+const htmlReportePdf = ref('')
+
 // Feedback
 const snackbar = ref({
   visible: false,
@@ -419,20 +512,56 @@ function mostrarMensaje(texto: string, color = 'success') {
   }
 }
 
-// Cargar predios al montar
+// Cargar predios y datos del instrumento al montar
 onMounted(async () => {
   if (props.escrituraId) {
+    cargarDatosEscritura()
     const lista = await cargarPredios(props.escrituraId)
     if (lista && lista.length > 0) {
       sincronizarFormularioConActivo(lista[0])
     } else {
-      // Si no tiene predios, inicializar un predio borrador vacío
       const nuevo = crearPredioVacio(props.escrituraId)
       seleccionarPredio(nuevo)
       sincronizarFormularioConActivo(nuevo)
     }
   }
 })
+
+async function cargarDatosEscritura() {
+  if (!props.escrituraId) return
+  try {
+    const { data } = await supabase
+      .from('escrituras')
+      .select('instrumento, anio, volumen, fecha_celebracion, objeto, acto_juridico_id, actos_juridicos(nombre)')
+      .eq('id', props.escrituraId)
+      .maybeSingle()
+
+    if (data) {
+      datosEscritura.value = data
+    }
+  } catch (err) {
+    console.warn('Error al cargar datos de escritura para reporte:', err)
+  }
+}
+
+// Redimensionar el mapa cuando cambie el modo pantalla completa
+watch(
+  () => props.isFullscreen,
+  () => {
+    nextTick(() => {
+      mapaRef.value?.redimensionarMapa?.()
+    })
+  }
+)
+
+function toggleFullscreen() {
+  if (props.isFullscreen) {
+    emit('cerrar-fullscreen')
+  } else {
+    emit('abrir-fullscreen')
+  }
+  emit('toggle-fullscreen')
+}
 
 // Observar cambio en predioActivo de usePredios
 watch(
@@ -601,6 +730,61 @@ async function ejecutarEliminarLote() {
     if (predios.value.length > 0) {
       alSeleccionarLote(predios.value[0])
     }
+  }
+}
+
+// Generación de Reporte / Cédula Técnica Notarial PDF
+async function abrirModalReportePdf() {
+  generandoPdf.value = true
+
+  try {
+    // Capturar mapa base64
+    let mapaBase64: string | null = null
+    if (mapaRef.value?.capturarMapaBase64) {
+      mapaBase64 = await mapaRef.value.capturarMapaBase64()
+    }
+
+    const acto = datosEscritura.value?.actos_juridicos?.nombre || 'Acto Traslativo de Dominio'
+
+    htmlReportePdf.value = generarHtmlCedulaGeorreferenciacion({
+      instrumentoNumero: datosEscritura.value?.instrumento || 'S/N',
+      volumen: datosEscritura.value?.volumen || null,
+      actoJuridico: acto,
+      objeto: datosEscritura.value?.objeto || '',
+      fechaCelebracion: datosEscritura.value?.fecha_celebracion || null,
+      notarioTitular: 'Lic. Notario Titular',
+      numeroNotaria: 42,
+      entidadFederativa: 'Ciudad de México',
+      etiqueta: predioForm.value.etiqueta || 'Predio Principal',
+      descripcion: predioForm.value.descripcion || null,
+      superficieCalculadaM2: predioForm.value.superficie_terreno_m2,
+      superficieDeclaradaM2: predioForm.value.superficie_declarada_m2,
+      centroide: predioForm.value.centroide?.coordinates
+        ? { lng: predioForm.value.centroide.coordinates[0], lat: predioForm.value.centroide.coordinates[1] }
+        : null,
+      coordenadasPoligono: coordenadasAnillo.value,
+      colindancias: predioForm.value.colindancias || [],
+      mapaCapturaUrl: mapaBase64,
+      fotoFachadaUrl: predioForm.value.foto_fachada_url
+    })
+
+    modalPdfVisible.value = true
+  } catch (err: any) {
+    mostrarMensaje('Error al generar la cédula técnica: ' + (err?.message || ''), 'error')
+  } finally {
+    generandoPdf.value = false
+  }
+}
+
+function imprimirCedulaPdf() {
+  const win = window.open('', '_blank')
+  if (win) {
+    win.document.write(htmlReportePdf.value)
+    win.document.close()
+    win.focus()
+    setTimeout(() => {
+      win.print()
+    }, 400)
   }
 }
 

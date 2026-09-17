@@ -254,14 +254,16 @@ function inicializarMapa() {
 
   layerCalles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '&copy; OpenStreetMap contributors',
+    crossOrigin: true
   })
 
   layerSatelite = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {
       maxZoom: 19,
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      crossOrigin: true
     }
   )
 
@@ -578,6 +580,143 @@ function seleccionarResultado(r: ResultadoBusquedaGeografica) {
     mapInstance.setView([r.lat, r.lon], 17)
   }
 }
+
+/**
+ * Captura la vista actual del mapa (tiles, polígono trazado, marcadores y rosa de los vientos) en base64 para reportes PDF
+ */
+async function capturarMapaBase64(): Promise<string | null> {
+  if (!mapContainer.value || !mapInstance) return null
+
+  try {
+    const width = mapContainer.value.clientWidth || 800
+    const height = mapContainer.value.clientHeight || 480
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // Fondo cartográfico neutro
+    ctx.fillStyle = '#e8ecef'
+    ctx.fillRect(0, 0, width, height)
+
+    // Dibujar tiles de Leaflet si están en el DOM
+    const tileImages = mapContainer.value.querySelectorAll<HTMLImageElement>('.leaflet-tile-pane img')
+    let tilesCopiados = 0
+
+    tileImages.forEach((img) => {
+      try {
+        if (img.complete && img.naturalWidth > 0) {
+          const rect = img.getBoundingClientRect()
+          const containerRect = mapContainer.value!.getBoundingClientRect()
+          const dx = rect.left - containerRect.left
+          const dy = rect.top - containerRect.top
+          ctx.drawImage(img, dx, dy, rect.width, rect.height)
+          tilesCopiados++
+        }
+      } catch {
+        // Silencioso si algún tile no permite export
+      }
+    })
+
+    // Si no hubo tiles copiados o para complementar, trazar cuadrícula cartográfica tenue
+    if (tilesCopiados === 0) {
+      ctx.fillStyle = '#f4f6f8'
+      ctx.fillRect(0, 0, width, height)
+      ctx.strokeStyle = '#d0d7de'
+      ctx.lineWidth = 1
+      for (let x = 0; x < width; x += 40) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, height)
+        ctx.stroke()
+      }
+      for (let y = 0; y < height; y += 40) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(width, y)
+        ctx.stroke()
+      }
+    }
+
+    // Dibujar el polígono delimitado del predio
+    if (vertices.value && vertices.value.length >= 3) {
+      const puntos = vertices.value.map(([lng, lat]) => {
+        return mapInstance.latLngToContainerPoint([lat, lng])
+      })
+
+      ctx.beginPath()
+      ctx.moveTo(puntos[0].x, puntos[0].y)
+      for (let i = 1; i < puntos.length; i++) {
+        ctx.lineTo(puntos[i].x, puntos[i].y)
+      }
+      ctx.closePath()
+
+      // Relleno suave de polígono notarial
+      ctx.fillStyle = 'rgba(169, 118, 46, 0.35)'
+      ctx.fill()
+
+      // Borde del polígono
+      ctx.strokeStyle = '#1B3A5F'
+      ctx.lineWidth = 3
+      ctx.stroke()
+
+      // Dibujar marcadores numerados en cada vértice
+      puntos.forEach((pt, idx) => {
+        ctx.beginPath()
+        ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2)
+        ctx.fillStyle = '#ffffff'
+        ctx.fill()
+        ctx.strokeStyle = '#1B3A5F'
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        ctx.fillStyle = '#1B3A5F'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(idx + 1), pt.x, pt.y)
+      })
+    }
+
+    // Rosa de los vientos (Indicador de Norte)
+    const northX = width - 40
+    const northY = 40
+    ctx.beginPath()
+    ctx.arc(northX, northY, 18, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.fill()
+    ctx.strokeStyle = '#1B3A5F'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    ctx.fillStyle = '#B23A34'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('N ↑', northX, northY)
+
+    return canvas.toDataURL('image/jpeg', 0.9)
+  } catch (e) {
+    console.warn('Error al capturar mapa a canvas:', e)
+    return null
+  }
+}
+
+function redimensionarMapa() {
+  nextTick(() => {
+    if (mapInstance) {
+      mapInstance.invalidateSize()
+    }
+  })
+}
+
+defineExpose({
+  capturarMapaBase64,
+  redimensionarMapa,
+  obtenerUbicacionDispositivo
+})
 </script>
 
 <style scoped>

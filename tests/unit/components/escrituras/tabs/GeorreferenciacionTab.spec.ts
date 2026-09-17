@@ -86,7 +86,29 @@ describe('GeorreferenciacionTab.vue', () => {
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          order: vi.fn().mockResolvedValue({ data: mockPrediosData, error: null })
+          order: vi.fn().mockResolvedValue({ data: mockPrediosData, error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              instrumento: 1234,
+              anio: 2026,
+              volumen: 1,
+              fecha_celebracion: '2026-09-17',
+              objeto: 'Compraventa',
+              actos_juridicos: { nombre: 'Compraventa de Inmueble' }
+            },
+            error: null
+          }),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              instrumento: 1234,
+              anio: 2026,
+              volumen: 1,
+              fecha_celebracion: '2026-09-17',
+              objeto: 'Compraventa',
+              actos_juridicos: { nombre: 'Compraventa de Inmueble' }
+            },
+            error: null
+          })
         })
       }),
       insert: vi.fn().mockReturnValue({
@@ -142,7 +164,8 @@ describe('GeorreferenciacionTab.vue', () => {
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          order: vi.fn().mockResolvedValue({ data: [], error: null })
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
         })
       })
     })
@@ -195,7 +218,6 @@ describe('GeorreferenciacionTab.vue', () => {
     await chipLoteB!.trigger('click')
     await flushPromises()
 
-    // El formulario debe reflejar la etiqueta y notas de Lote B
     expect(wrapper.html()).toContain('Lote B (Subdivisión)')
   })
 
@@ -226,5 +248,62 @@ describe('GeorreferenciacionTab.vue', () => {
 
     expect(wrapper.emitted('status-change')).toBeTruthy()
     expect(wrapper.emitted('cambio-cumplimiento')).toBeTruthy()
+  })
+
+  it('permite alternar pantalla completa emitiendo abrir-fullscreen', async () => {
+    const wrapper = mount(GeorreferenciacionTab, {
+      props: {
+        escrituraId: 'esc-123',
+        isFullscreen: false
+      },
+      global: {
+        plugins: [vuetify],
+        stubs: {
+          ClientOnly: { template: '<div><slot /></div>' },
+          PredioMapaLeaflet: {
+            template: '<div class="stub-mapa" />',
+            props: ['modelValue', 'predios', 'predioActivoId', 'editable']
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const btnFullscreen = wrapper.findAll('button').find((b) => b.text().includes('Pantalla Completa'))
+    expect(btnFullscreen).toBeDefined()
+
+    await btnFullscreen!.trigger('click')
+    expect(wrapper.emitted('abrir-fullscreen')).toBeTruthy()
+    expect(wrapper.emitted('toggle-fullscreen')).toBeTruthy()
+  })
+
+  it('abre el diálogo de previsualización de Cédula PDF al pulsar Cédula PDF', async () => {
+    const wrapper = mount(GeorreferenciacionTab, {
+      props: {
+        escrituraId: 'esc-123'
+      },
+      global: {
+        plugins: [vuetify],
+        stubs: {
+          ClientOnly: { template: '<div><slot /></div>' },
+          PredioMapaLeaflet: {
+            template: '<div class="stub-mapa" />',
+            props: ['modelValue', 'predios', 'predioActivoId', 'editable']
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const btnPdf = wrapper.findAll('button').find((b) => b.text().includes('Cédula PDF'))
+    expect(btnPdf).toBeDefined()
+
+    await btnPdf!.trigger('click')
+    await flushPromises()
+
+    // Verifica que el diálogo se abrió y tiene el título correspondiente
+    expect(document.body.textContent).toContain('Cédula Técnica Notarial de Georreferenciación')
   })
 })

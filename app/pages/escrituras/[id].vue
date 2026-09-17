@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSupabaseClient } from '#imports'
 import ComparecientesTab from '~/components/escrituras/tabs/ComparecientesTab.vue'
@@ -93,6 +93,15 @@ async function onCambioCumplimiento(): Promise<void> {
     await protocolizarBtnRef.value.validar()
   }
 }
+
+// Abrir automáticamente en pantalla completa al pulsar la pestaña de Georreferenciación
+const fullscreenGeo = ref(false)
+
+watch(tab, (nuevoTab) => {
+  if (nuevoTab === 'georreferenciacion' && esTraslativo.value) {
+    fullscreenGeo.value = true
+  }
+})
 </script>
 
 <template>
@@ -200,11 +209,64 @@ async function onCambioCumplimiento(): Promise<void> {
             <GeorreferenciacionTab
               :escritura-id="escrituraId"
               :acto-juridico-id="escritura.actoJuridicoId"
+              :is-fullscreen="false"
               @status-change="onCambioCumplimiento"
+              @abrir-fullscreen="fullscreenGeo = true"
             />
           </v-window-item>
         </v-window>
       </v-card-text>
     </v-card>
+
+    <!-- Modal de Pantalla Completa para Georreferenciación -->
+    <v-dialog
+      v-if="esTraslativo"
+      v-model="fullscreenGeo"
+      fullscreen
+      transition="dialog-bottom-transition"
+      :scrim="false"
+    >
+      <v-card class="d-flex flex-column h-100 bg-grey-lighten-4">
+        <!-- Barra de herramientas superior -->
+        <v-toolbar color="primary" density="compact" dark class="px-3">
+          <v-icon icon="mdi-map-marker-radius" class="mr-2" />
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold">
+            Delimitación Geográfica e Inmuebles — Instrumento {{ escritura.instrumento }}
+            <span v-if="escritura.actoJuridicoNombre" class="text-caption font-weight-regular ml-2 opacity-90">
+              ({{ escritura.actoJuridicoNombre }})
+            </span>
+          </v-toolbar-title>
+          <v-spacer />
+          <v-btn
+            variant="tonal"
+            color="white"
+            size="small"
+            prepend-icon="mdi-fullscreen-exit"
+            class="text-capitalize font-weight-medium mr-2"
+            @click="fullscreenGeo = false"
+          >
+            Salir de Pantalla Completa
+          </v-btn>
+          <v-btn
+            icon="mdi-close"
+            size="small"
+            variant="text"
+            color="white"
+            @click="fullscreenGeo = false"
+          />
+        </v-toolbar>
+
+        <!-- Contenido de Georreferenciación en Pantalla Completa -->
+        <v-card-text class="pa-4 flex-grow-1 overflow-y-auto">
+          <GeorreferenciacionTab
+            :escritura-id="escrituraId"
+            :acto-juridico-id="escritura.actoJuridicoId"
+            :is-fullscreen="true"
+            @status-change="onCambioCumplimiento"
+            @cerrar-fullscreen="fullscreenGeo = false"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
