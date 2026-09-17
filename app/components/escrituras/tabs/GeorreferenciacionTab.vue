@@ -738,10 +738,10 @@ async function abrirModalReportePdf() {
   generandoPdf.value = true
 
   try {
-    // Capturar mapa base64
+    // Capturar mapa base64 con perspectiva ampliada (un zoom arriba) para referencias de calles
     let mapaBase64: string | null = null
     if (mapaRef.value?.capturarMapaBase64) {
-      mapaBase64 = await mapaRef.value.capturarMapaBase64()
+      mapaBase64 = await mapaRef.value.capturarMapaBase64(1)
     }
 
     const acto = datosEscritura.value?.actos_juridicos?.nombre || 'Acto Traslativo de Dominio'

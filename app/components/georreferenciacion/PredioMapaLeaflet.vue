@@ -42,6 +42,19 @@
         <v-icon icon="mdi-crosshairs-gps" size="18" />
       </v-btn>
 
+      <!-- Botón Centrar en el Predio trazado -->
+      <v-btn
+        v-if="vertices.length >= 3"
+        icon
+        size="small"
+        variant="tonal"
+        color="primary"
+        title="Centrar mapa en el lote/predio"
+        @click="centrarEnPredio"
+      >
+        <v-icon icon="mdi-crosshairs" size="18" />
+      </v-btn>
+
       <!-- Selector de Capa (Calles / Satélite) -->
       <v-btn-toggle v-model="capaActiva" mandatory density="compact" color="primary">
         <v-btn value="calles" size="small" prepend-icon="mdi-map">
@@ -512,11 +525,21 @@ function dibujarPoligonoFinal(coords: [number, number][]) {
     markerLayers.push(marker)
   }
 
-  // Ajustar vista al polígono
+  // Ajustar vista al polígono sin sobre-acercar en exceso (maxZoom: 17 para mantener calles visibles)
   try {
-    mapInstance.fitBounds(polygonLayer.getBounds(), { padding: [30, 30] })
+    mapInstance.fitBounds(polygonLayer.getBounds(), { padding: [50, 50], maxZoom: 17 })
   } catch {
     // Si bounds es singular, ignorar
+  }
+}
+
+function centrarEnPredio() {
+  if (polygonLayer && mapInstance) {
+    try {
+      mapInstance.fitBounds(polygonLayer.getBounds(), { padding: [50, 50], maxZoom: 17 })
+    } catch {
+      // Si bounds es singular, ignorar
+    }
   }
 }
 
@@ -581,21 +604,86 @@ function seleccionarResultado(r: ResultadoBusquedaGeografica) {
   }
 }
 
+function esperarCargaTiles(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (!mapInstance) return resolve()
+
+    let resuelto = false
+    const terminar = () => {
+      if (!resuelto) {
+        resuelto = true
+        resolve()
+      }
+    }
+
+    const capa = capaActiva.value === 'satelite' ? layerSatelite : layerCalles
+    if (capa) {
+      if (typeof capa.isLoading === 'function' && !capa.isLoading()) {
+        setTimeout(terminar, 100)
+        return
+      }
+
+      if (typeof capa.once === 'function') {
+        capa.once('load', () => {
+          setTimeout(terminar, 80)
+        })
+      }
+    }
+
+    // Timeout máximo de seguridad
+    setTimeout(terminar, 600)
+  })
+}
+
 /**
  * Captura la vista actual del mapa (tiles, polígono trazado, marcadores y rosa de los vientos) en base64 para reportes PDF
+ * Permite aplicar un desplazamiento de zoom (zoomDelta: por defecto 1 nivel arriba / alejado) para que la captura
+ * abarque más calles y referencias circundantes de localización notarial.
  */
-async function capturarMapaBase64(): Promise<string | null> {
+async function capturarMapaBase64(zoomDelta: number = 1): Promise<string | null> {
   if (!mapContainer.value || !mapInstance) return null
 
   try {
     const width = mapContainer.value.clientWidth || 800
     const height = mapContainer.value.clientHeight || 480
 
+    // Guardar vista previa interactiva del usuario
+    const prevCenter = mapInstance.getCenter()
+    const prevZoom = mapInstance.getZoom()
+
+    // Para la cédula notarial, si zoomDelta > 0, alejamos la vista ("un zoom arriba")
+    // y centramos en el polígono del predio para garantizar que abarque
+    // más calles y manzanas circundantes como referencia de ubicación.
+    let targetCenter = prevCenter
+    if (polygonLayer && typeof polygonLayer.getBounds === 'function') {
+      try {
+        targetCenter = polygonLayer.getBounds().getCenter()
+      } catch {
+        targetCenter = prevCenter
+      }
+    }
+
+    const targetZoom = Math.max(prevZoom - zoomDelta, 11)
+    const requiereCambioVista =
+      targetZoom !== prevZoom ||
+      Math.abs(targetCenter.lat - prevCenter.lat) > 0.000001 ||
+      Math.abs(targetCenter.lng - prevCenter.lng) > 0.000001
+
+    if (requiereCambioVista) {
+      mapInstance.setView(targetCenter, targetZoom, { animate: false })
+      await esperarCargaTiles()
+    }
+
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
     const ctx = canvas.getContext('2d')
-    if (!ctx) return null
+    if (!ctx) {
+      if (requiereCambioVista) {
+        mapInstance.setView(prevCenter, prevZoom, { animate: false })
+      }
+      return null
+    }
 
     // Fondo cartográfico neutro
     ctx.fillStyle = '#e8ecef'
@@ -607,7 +695,12 @@ async function capturarMapaBase64(): Promise<string | null> {
 
     tileImages.forEach((img) => {
       try {
-        if (img.complete && img.naturalWidth > 0) {
+        if (
+          img.complete &&
+          img.naturalWidth > 0 &&
+          window.getComputedStyle(img).display !== 'none' &&
+          window.getComputedStyle(img).opacity !== '0'
+        ) {
           const rect = img.getBoundingClientRect()
           const containerRect = mapContainer.value!.getBoundingClientRect()
           const dx = rect.left - containerRect.left
@@ -640,9 +733,43 @@ async function capturarMapaBase64(): Promise<string | null> {
       }
     }
 
+    // Dibujar otros predios de la misma escritura (subdivisiones) en gris tenue
+    if (props.predios && props.predios.length > 0) {
+      const otros = props.predios.filter(
+        (p) => p.id && p.id !== props.predioActivoId && p.geometria?.coordinates?.[0]?.length >= 3
+      )
+      otros.forEach((p) => {
+        const ring = p.geometria.coordinates[0]
+        const pts = ring.map(([lng, lat]: [number, number]) =>
+          mapInstance.latLngToContainerPoint([lat, lng])
+        )
+        if (pts.length >= 3) {
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x, pts[0].y)
+          for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y)
+          }
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(158, 158, 158, 0.25)'
+          ctx.fill()
+          ctx.strokeStyle = '#757575'
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([4, 4])
+          ctx.stroke()
+          ctx.setLineDash([])
+        }
+      })
+    }
+
     // Dibujar el polígono delimitado del predio
     if (vertices.value && vertices.value.length >= 3) {
-      const puntos = vertices.value.map(([lng, lat]) => {
+      const coords = [...vertices.value]
+      const esCerrado =
+        coords.length > 3 &&
+        coords[0][0] === coords[coords.length - 1][0] &&
+        coords[0][1] === coords[coords.length - 1][1]
+
+      const puntos = coords.map(([lng, lat]) => {
         return mapInstance.latLngToContainerPoint([lat, lng])
       })
 
@@ -663,7 +790,9 @@ async function capturarMapaBase64(): Promise<string | null> {
       ctx.stroke()
 
       // Dibujar marcadores numerados en cada vértice
-      puntos.forEach((pt, idx) => {
+      const n = esCerrado ? puntos.length - 1 : puntos.length
+      for (let i = 0; i < n; i++) {
+        const pt = puntos[i]
         ctx.beginPath()
         ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2)
         ctx.fillStyle = '#ffffff'
@@ -676,8 +805,8 @@ async function capturarMapaBase64(): Promise<string | null> {
         ctx.font = 'bold 10px sans-serif'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(String(idx + 1), pt.x, pt.y)
-      })
+        ctx.fillText(String(i + 1), pt.x, pt.y)
+      }
     }
 
     // Rosa de los vientos (Indicador de Norte)
@@ -697,7 +826,15 @@ async function capturarMapaBase64(): Promise<string | null> {
     ctx.textBaseline = 'middle'
     ctx.fillText('N ↑', northX, northY)
 
-    return canvas.toDataURL('image/jpeg', 0.9)
+    // Obtener imagen en base64
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+
+    // Restaurar vista interactiva previa del usuario
+    if (requiereCambioVista && mapInstance) {
+      mapInstance.setView(prevCenter, prevZoom, { animate: false })
+    }
+
+    return dataUrl
   } catch (e) {
     console.warn('Error al capturar mapa a canvas:', e)
     return null
@@ -715,7 +852,8 @@ function redimensionarMapa() {
 defineExpose({
   capturarMapaBase64,
   redimensionarMapa,
-  obtenerUbicacionDispositivo
+  obtenerUbicacionDispositivo,
+  centrarEnPredio
 })
 </script>
 
