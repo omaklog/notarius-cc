@@ -306,4 +306,38 @@ describe('GeorreferenciacionTab.vue', () => {
     // Verifica que el diálogo se abrió y tiene el título correspondiente
     expect(document.body.textContent).toContain('Cédula Técnica Notarial de Georreferenciación')
   })
+
+  it('permite ajustar el zoom del croquis con los botones + y - en el modal PDF', async () => {
+    const wrapper = mount(GeorreferenciacionTab, {
+      props: {
+        escrituraId: 'esc-123'
+      },
+      global: {
+        plugins: [vuetify],
+        stubs: {
+          ClientOnly: { template: '<div><slot /></div>' },
+          PredioMapaLeaflet: {
+            template: '<div class="stub-mapa" />',
+            props: ['modelValue', 'predios', 'predioActivoId', 'editable']
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    // Abrir modal PDF
+    const btnPdf = wrapper.findAll('button').find((b) => b.text().includes('Cédula PDF'))
+    await btnPdf!.trigger('click')
+    await flushPromises()
+
+    // Botones de zoom en el toolbar
+    const btnMinus = document.querySelector('button[title*="Alejar mapa"]') as HTMLButtonElement
+    const btnPlus = document.querySelector('button[title*="Acercar mapa"]') as HTMLButtonElement
+
+    expect(btnMinus).not.toBeNull()
+    expect(btnPlus).not.toBeNull()
+    expect(btnMinus.disabled).toBe(false)
+    expect(btnPlus.disabled).toBe(false)
+  })
 })
