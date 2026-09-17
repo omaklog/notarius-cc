@@ -406,10 +406,11 @@
           </v-btn>
           <v-btn icon="mdi-close" size="small" variant="text" @click="modalPdfVisible = false" />
         </v-toolbar>
-        <v-card-text class="pa-0" style="height: 75vh; background-color: #525659;">
+        <v-card-text class="pa-4" style="height: 75vh; background-color: #525659;">
           <iframe
             :srcdoc="htmlReportePdf"
-            style="width: 100%; height: 100%; border: none; background: white;"
+            class="rounded elevation-2"
+            style="width: 100%; height: 100%; border: none; background: white; display: block;"
           />
         </v-card-text>
         <v-card-actions class="pa-3 bg-surface border-t">

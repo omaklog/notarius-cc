@@ -96,10 +96,15 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
       font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #1C222B;
       margin: 0;
-      padding: 0;
+      padding: 14px 18px;
       background: #FFFFFF;
       font-size: 11px;
       line-height: 1.35;
+    }
+    @media print {
+      body {
+        padding: 0 !important;
+      }
     }
     .header {
       border-bottom: 2px solid #1B3A5F;
