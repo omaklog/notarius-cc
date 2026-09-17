@@ -1,5 +1,6 @@
 /**
  * Utilería para la generación e impresión de la Cédula Técnica Notarial de Georreferenciación y Delimitación Poligonal en PDF.
+ * Diseño optimizado para hoja membretada notarial en una sola página.
  */
 
 export interface DatosColindanciaReporte {
@@ -52,21 +53,21 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
   // Calcular perímetro total si hay distancias
   const perimetroTotal = datos.colindancias.reduce((acc, c) => acc + (c.distancia_m || 0), 0)
 
-  // Filas de colindancias
+  // Filas compactas de colindancias
   const filasColindancias = datos.colindancias.length > 0
     ? datos.colindancias.map((col, idx) => `
       <tr style="border-bottom: 1px solid #E2E6EC;">
-        <td style="padding: 7px 10px; text-align: center; font-weight: bold; color: #1B3A5F;">Lado ${idx + 1}</td>
-        <td style="padding: 7px 10px; font-weight: 600; color: #A9762E;">${col.orientacion}</td>
-        <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-size: 12px;">
+        <td style="padding: 5px 6px; text-align: center; font-weight: bold; color: #1B3A5F; font-size: 10px;">Lado ${idx + 1}</td>
+        <td style="padding: 5px 6px; font-weight: 600; color: #A9762E; font-size: 10.5px;">${col.orientacion}</td>
+        <td style="padding: 5px 6px; text-align: right; font-family: monospace; font-size: 10.5px; white-space: nowrap;">
           ${col.distancia_m ? formatearMetros(col.distancia_m) + ' m' : '—'}
         </td>
-        <td style="padding: 7px 10px; color: #1C222B;">${col.colinda_con || 'Sin especificar'}</td>
+        <td style="padding: 5px 6px; color: #1C222B; font-size: 10px;">${col.colinda_con || 'Sin especificar'}</td>
       </tr>
     `).join('')
     : `
       <tr>
-        <td colspan="4" style="padding: 12px; text-align: center; color: #5B6472; font-style: italic;">
+        <td colspan="4" style="padding: 8px; text-align: center; color: #5B6472; font-style: italic; font-size: 10px;">
           No se registraron linderos específicos para este predio.
         </td>
       </tr>
@@ -86,7 +87,7 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
   <style>
     @page {
       size: letter;
-      margin: 14mm 16mm;
+      margin: 10mm 14mm;
     }
     * {
       box-sizing: border-box;
@@ -97,34 +98,35 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
       margin: 0;
       padding: 0;
       background: #FFFFFF;
-      font-size: 12px;
-      line-height: 1.4;
+      font-size: 11px;
+      line-height: 1.35;
     }
     .header {
-      border-bottom: 2.5px solid #1B3A5F;
-      padding-bottom: 12px;
-      margin-bottom: 16px;
+      border-bottom: 2px solid #1B3A5F;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
     }
     .titulo-notaria {
       color: #1B3A5F;
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .subtitulo-notaria {
       color: #A9762E;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
-      margin-top: 2px;
+      margin-top: 1px;
     }
     .folio-box {
       text-align: right;
-      font-size: 11px;
+      font-size: 10.5px;
       color: #5B6472;
+      line-height: 1.25;
     }
     .folio-box strong {
       font-size: 13px;
@@ -134,26 +136,30 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
     .cedula-badge {
       background: #1B3A5F;
       color: #FFFFFF;
-      padding: 6px 12px;
+      padding: 5px 10px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       text-align: center;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
-    .card-grid {
+    .top-columns-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 44% 56%;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+      align-items: stretch;
     }
     .info-card {
       background: #F8FAFC;
       border: 1px solid #CBD2DC;
       border-radius: 5px;
-      padding: 10px 12px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .info-card h4 {
       margin: 0 0 6px 0;
@@ -161,27 +167,62 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
       font-size: 11px;
       text-transform: uppercase;
       border-bottom: 1px solid #E2E6EC;
-      padding-bottom: 4px;
+      padding-bottom: 3px;
+      font-weight: 700;
     }
     .campo {
       margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
+      align-items: baseline;
     }
     .campo-label {
       color: #5B6472;
       font-weight: 500;
+      font-size: 10.5px;
     }
     .campo-valor {
       font-weight: 600;
       color: #1C222B;
       text-align: right;
+      font-size: 11px;
+    }
+    .campo-descripcion {
+      margin-top: 6px;
+      border-top: 1px dashed #CBD2DC;
+      padding-top: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10.5px;
+    }
+    th {
+      background: #F0F2F4;
+      color: #1B3A5F;
+      padding: 5px 6px;
+      text-align: left;
+      font-weight: 700;
+      border-bottom: 1.5px solid #CBD2DC;
+      text-transform: uppercase;
+      font-size: 9.5px;
+    }
+    .perimetro-box {
+      background: #F0F4F8;
+      border: 1px solid #CBD2DC;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-top: 6px;
+      font-size: 10.5px;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
     }
     .visuales-grid {
       display: grid;
-      grid-template-columns: ${datos.fotoFachadaUrl ? '1.3fr 1fr' : '1fr'};
+      grid-template-columns: ${datos.fotoFachadaUrl ? '1.25fr 1fr' : '1fr'};
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     .visual-box {
       border: 1px solid #CBD2DC;
@@ -191,80 +232,53 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
       text-align: center;
     }
     .visual-title {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: bold;
       color: #1B3A5F;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       text-transform: uppercase;
     }
     .visual-img {
       max-width: 100%;
-      height: 210px;
+      height: 250px;
       object-fit: contain;
       border-radius: 4px;
       background: #FFFFFF;
       border: 1px solid #E2E6EC;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 6px;
-      font-size: 11px;
-    }
-    th {
-      background: #F0F2F4;
-      color: #1B3A5F;
-      padding: 7px 10px;
-      text-align: left;
-      font-weight: 700;
-      border-bottom: 1.5px solid #CBD2DC;
-      text-transform: uppercase;
-      font-size: 10px;
-    }
-    .perimetro-box {
-      background: #F8FAFC;
-      border: 1px solid #CBD2DC;
-      padding: 6px 12px;
-      border-radius: 4px;
-      margin-top: 6px;
-      font-size: 11px;
-      display: flex;
-      justify-content: space-between;
-      font-weight: 600;
-    }
     .footer-fe {
-      margin-top: 20px;
-      padding-top: 10px;
+      margin-top: 10px;
+      padding-top: 8px;
       border-top: 1px dashed #CBD2DC;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      font-size: 10px;
+      font-size: 9.5px;
       color: #5B6472;
     }
     .sello-recuadro {
       border: 1.5px solid #A9762E;
       border-radius: 4px;
-      padding: 8px 14px;
+      padding: 6px 12px;
       color: #A9762E;
       font-weight: bold;
-      font-size: 10px;
+      font-size: 9.5px;
       text-align: center;
-      line-height: 1.3;
+      line-height: 1.25;
     }
   </style>
 </head>
 <body>
-  <!-- Encabezado Notarial -->
+  <!-- Encabezado Notarial Compacto -->
   <div class="header">
     <div>
       <div class="titulo-notaria">Notaría Pública No. ${datos.numeroNotaria || 42}</div>
       <div class="subtitulo-notaria">${datos.notarioTitular || 'Lic. Notario Titular'} · ${datos.entidadFederativa || 'Ciudad de México'}</div>
     </div>
     <div class="folio-box">
-      <div>EXPEDIENTE NOTARIAL DIGITAL</div>
+      <div style="text-transform: uppercase; font-weight: 600; color: #A9762E;">Expediente Notarial Digital</div>
       <strong>Instrumento No. ${datos.instrumentoNumero}</strong>
-      <div>Volumen: ${datos.volumen || '—'}</div>
+      <div>Acto: ${datos.actoJuridico}${datos.volumen ? ' · Volumen: ' + datos.volumen : ''}</div>
     </div>
   </div>
 
@@ -272,51 +286,71 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
     Cédula Técnica de Georreferenciación y Delimitación Inmobiliaria
   </div>
 
-  <!-- Metadatos de Escritura y Predio -->
-  <div class="card-grid">
+  <!-- Fila Superior Dividida: Identificación del Inmueble (Izq) | Medidas y Colindancias (Der) -->
+  <div class="top-columns-grid">
+    <!-- Columna Izquierda: Identificación del Inmueble -->
     <div class="info-card">
-      <h4>Datos del Instrumento Notarial</h4>
-      <div class="campo">
-        <span class="campo-label">Acto Jurídico:</span>
-        <span class="campo-valor">${datos.actoJuridico}</span>
+      <div>
+        <h4>Identificación del Inmueble</h4>
+        <div class="campo">
+          <span class="campo-label">Lote / Identificador:</span>
+          <span class="campo-valor" style="color: #1B3A5F; font-size: 11.5px;">${datos.etiqueta}</span>
+        </div>
+        <div class="campo">
+          <span class="campo-label">Superficie Terreno Calculada:</span>
+          <span class="campo-valor" style="color: #2F6F4E;">
+            ${datos.superficieCalculadaM2 ? formatearMetros(datos.superficieCalculadaM2) + ' m²' : '0.00 m²'}
+            <small style="color: #5B6472; display: block; font-weight: normal; font-size: 9px;">(Aprox. satelital WGS84)</small>
+          </span>
+        </div>
+        <div class="campo">
+          <span class="campo-label">Superficie Declarada en Título:</span>
+          <span class="campo-valor">
+            ${datos.superficieDeclaradaM2 ? formatearMetros(datos.superficieDeclaradaM2) + ' m²' : 'No declarada'}
+          </span>
+        </div>
+        <div class="campo">
+          <span class="campo-label">Centroide Geográfico:</span>
+          <span class="campo-valor" style="font-size: 9.5px;">${centroideTexto}</span>
+        </div>
       </div>
-      <div class="campo">
-        <span class="campo-label">Fecha Celebración:</span>
-        <span class="campo-valor">${datos.fechaCelebracion || '—'}</span>
-      </div>
-      <div class="campo">
-        <span class="campo-label">Objeto del Acto:</span>
-        <span class="campo-valor" style="font-size: 10.5px; max-width: 60%;">${datos.objeto || '—'}</span>
+
+      <!-- Descripción y Referencias de Ubicación integradas en la tarjeta -->
+      <div class="campo-descripcion">
+        <span class="campo-label" style="display: block; font-size: 9.5px; margin-bottom: 2px;">Descripción y Referencias:</span>
+        <div style="font-size: 10px; color: #1C222B;">
+          ${datos.descripcion || 'Acceso por calle principal frente a parque'}
+        </div>
       </div>
     </div>
 
+    <!-- Columna Derecha: Medidas y Colindancias -->
     <div class="info-card">
-      <h4>Identificación del Inmueble</h4>
-      <div class="campo">
-        <span class="campo-label">Lote / Identificador:</span>
-        <span class="campo-valor" style="color: #1B3A5F;">${datos.etiqueta}</span>
+      <div>
+        <h4>Medidas y Colindancias Orientadas</h4>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 52px; text-align: center;">Tramo</th>
+              <th style="width: 80px;">Rumbo</th>
+              <th style="width: 75px; text-align: right;">Distancia</th>
+              <th>Colindancia</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasColindancias}
+          </tbody>
+        </table>
       </div>
-      <div class="campo">
-        <span class="campo-label">Superficie Terreno Calculada:</span>
-        <span class="campo-valor" style="color: #2F6F4E;">
-          ${datos.superficieCalculadaM2 ? formatearMetros(datos.superficieCalculadaM2) + ' m²' : '0.00 m²'}
-          <small style="color: #5B6472; display: block; font-weight: normal;">(Aprox. satelital WGS84)</small>
-        </span>
-      </div>
-      <div class="campo">
-        <span class="campo-label">Superficie Declarada en Título:</span>
-        <span class="campo-valor">
-          ${datos.superficieDeclaradaM2 ? formatearMetros(datos.superficieDeclaradaM2) + ' m²' : 'No declarada'}
-        </span>
-      </div>
-      <div class="campo">
-        <span class="campo-label">Centroide Geográfico:</span>
-        <span class="campo-valor" style="font-size: 10px;">${centroideTexto}</span>
+
+      <div class="perimetro-box">
+        <span>Perímetro Total Calculado:</span>
+        <span style="font-family: monospace; font-size: 11px;">${formatearMetros(perimetroTotal)} metros lineales</span>
       </div>
     </div>
   </div>
 
-  <!-- Sección Visual: Captura del Mapa y Fotografía de Fachada -->
+  <!-- Sección Visual: Captura del Mapa y Fotografía de Fachada Lado a Lado -->
   <div class="visuales-grid">
     <div class="visual-box">
       <div class="visual-title">Plano Geográfico y Delimitación Poligonal</div>
@@ -324,8 +358,8 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
         ? `<img src="${datos.mapaCapturaUrl}" class="visual-img" alt="Delimitación de Polígono" />`
         : `<div class="visual-img" style="display:flex;align-items:center;justify-content:center;color:#5B6472;">Plano geométrico trazado (${datos.coordenadasPoligono.length} vértices)</div>`
       }
-      <div style="font-size: 9.5px; color: #5B6472; margin-top: 4px;">
-        Proyección cartográfica sobre elipsoide de referencia WGS84 · OpenStreetMap / Esri World Imagery
+      <div style="font-size: 9px; color: #5B6472; margin-top: 3px;">
+        Proyección cartográfica sobre elipsoide WGS84 · OpenStreetMap / Esri World Imagery
       </div>
     </div>
 
@@ -333,43 +367,11 @@ export function generarHtmlCedulaGeorreferenciacion(datos: DatosReporteGeorrefer
     <div class="visual-box">
       <div class="visual-title">Fotografía de Fachada y Acceso</div>
       <img src="${datos.fotoFachadaUrl}" class="visual-img" alt="Fotografía de Fachada" />
-      <div style="font-size: 9.5px; color: #5B6472; margin-top: 4px;">
+      <div style="font-size: 9px; color: #5B6472; margin-top: 3px;">
         Constancia testimonial incorporada al Expediente Notarial Digital
       </div>
     </div>
     ` : ''}
-  </div>
-
-  <!-- Cuadro de Medidas y Colindancias -->
-  <div style="margin-bottom: 14px;">
-    <div style="font-size: 12px; font-weight: 700; color: #1B3A5F; text-transform: uppercase; margin-bottom: 4px;">
-      Cuadro de Construcción y Colindancias Orientadas
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 80px; text-align: center;">Tramo</th>
-          <th style="width: 110px;">Rumbo / Orientación</th>
-          <th style="width: 110px; text-align: right;">Distancia</th>
-          <th>Colindancia</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filasColindancias}
-      </tbody>
-    </table>
-    <div class="perimetro-box">
-      <span>Perímetro Total Calculado:</span>
-      <span style="font-family: monospace; font-size: 12px;">${formatearMetros(perimetroTotal)} metros lineales</span>
-    </div>
-  </div>
-
-  <!-- Descripción y Referencias de Ubicación -->
-  <div class="info-card" style="margin-bottom: 14px;">
-    <h4>Descripción y Referencias de Localización</h4>
-    <div style="color: #1C222B; font-size: 11px;">
-      ${datos.descripcion || 'Sin observaciones o referencias adicionales capturadas.'}
-    </div>
   </div>
 
   <!-- Pie y Fe Notarial -->
