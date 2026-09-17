@@ -9,6 +9,7 @@ import PldTab from '~/components/escrituras/tabs/PldTab.vue'
 import TramitesTab from '~/components/escrituras/tabs/TramitesTab.vue'
 import OrdenesPagoTab from '~/components/escrituras/tabs/OrdenesPagoTab.vue'
 import PlaceholderTab from '~/components/escrituras/tabs/PlaceholderTab.vue'
+import GeorreferenciacionTab from '~/components/escrituras/tabs/GeorreferenciacionTab.vue'
 import ProtocolizarButton from '~/components/escrituras/ProtocolizarButton.vue'
 import AnularDialog from '~/components/escrituras/AnularDialog.vue'
 
@@ -196,7 +197,11 @@ async function onCambioCumplimiento(): Promise<void> {
             <PlaceholderTab />
           </v-window-item>
           <v-window-item v-if="esTraslativo" value="georreferenciacion">
-            <PlaceholderTab />
+            <GeorreferenciacionTab
+              :escritura-id="escrituraId"
+              :acto-juridico-id="escritura.actoJuridicoId"
+              @status-change="onCambioCumplimiento"
+            />
           </v-window-item>
         </v-window>
       </v-card-text>
