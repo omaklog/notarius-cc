@@ -1,0 +1,1 @@
+ALTER TABLE public.instrumento_control ENABLE ROW LEVEL SECURITY;
