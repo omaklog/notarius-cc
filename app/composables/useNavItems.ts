@@ -23,8 +23,8 @@ const navGroups: NavGroup[] = [
     items: [
       { label: 'Escrituras', to: '/escrituras', icon: 'mdi-file-certificate-outline', permiso: { modulo: 'escrituras', accion: 'ver' } },
       { label: 'Comparecientes', to: '/comparecientes', icon: 'mdi-account-group-outline', permiso: { modulo: 'comparecientes', accion: 'ver' } },
-      { label: 'Expedientes', to: '/expedientes', icon: 'mdi-folder-outline', permiso: { modulo: 'expedientes', accion: 'ver' } },
       { label: 'Trámites', to: '/tramites', icon: 'mdi-clipboard-list-outline', permiso: { modulo: 'tramites', accion: 'ver' } },
+      { label: 'Libro de Cotejos', to: '/cotejos', icon: 'mdi-book-check-outline', permiso: { modulo: 'cotejos', accion: 'ver' } },
     ],
   },
   {
@@ -41,13 +41,6 @@ const navGroups: NavGroup[] = [
     items: [
       { label: 'Órdenes de pago', to: '/ordenes-pago', icon: 'mdi-bank-transfer', permiso: { modulo: 'ordenes_pago', accion: 'ver' } },
       { label: 'Honorarios', to: '/honorarios', icon: 'mdi-cash', permiso: { modulo: 'honorarios', accion: 'ver' } },
-    ],
-  },
-  {
-    label: 'Ubicación',
-    icon: 'mdi-map-outline',
-    items: [
-      { label: 'Georreferenciación', to: '/georreferenciacion', icon: 'mdi-map-marker-outline', permiso: { modulo: 'georreferenciacion', accion: 'ver' } },
     ],
   },
   {

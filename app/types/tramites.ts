@@ -80,6 +80,10 @@ export interface TramiteEscritura {
   created_by?: string | null
   created_at?: string
   updated_at?: string
+  custodia_actual_rol?: 'redactor' | 'gestor' | 'notario' | 'administrador'
+  custodio_actual_id?: string | null
+  fecha_inicio_custodia_actual?: string | null
+  detenido_por_solventacion?: boolean
 }
 
 export interface TramiteResumen extends TramiteEscritura {
@@ -88,6 +92,8 @@ export interface TramiteResumen extends TramiteEscritura {
   dependencia_sigla?: string
   dependencia_nombre?: string
   responsable_nombre?: string
+  custodio_nombre?: string
+  horas_en_custodia?: number
   escritura_instrumento?: string | null
   escritura_expediente?: string | null
   acto_nombre?: string | null

@@ -208,6 +208,24 @@ values
     'Marcar un aviso SAT/UIF como presentado',
     true
   ),
+  (
+    'avisos_sat',
+    'generar_xml',
+    'Generar layouts XML individuales y paquetes mensuales SPPLD',
+    true
+  ),
+  (
+    'avisos_sat',
+    'registrar_acuse',
+    'Asentar folios oficiales de acuse SAT y comprobantes PDF',
+    true
+  ),
+  (
+    'avisos_sat',
+    'ceros',
+    'Declarar informe mensual en ceros ante el SAT',
+    false
+  ),
   ('ordenes_pago', 'ver', 'Ver órdenes de pago', true),
   ('ordenes_pago', 'crear', 'Crear órdenes de pago', true),
   ('ordenes_pago', 'editar', 'Editar órdenes de pago', true),
@@ -236,7 +254,10 @@ values
   ),
   ('reportes', 'ver_operativos', 'Ver reportes operativos', false),
   ('reportes', 'ver_financieros', 'Ver reportes financieros', false),
-  ('administracion', 'acceso', 'Acceso a Administración General', false);
+  ('administracion', 'acceso', 'Acceso a Administración General', false)
+on conflict (modulo, accion) do update set
+  descripcion = excluded.descripcion,
+  requiere_alcance = excluded.requiere_alcance;
 
 -- ============================================================
 -- roles (configuración inicial — 100% editable después, spec Assumptions)
@@ -266,7 +287,11 @@ values
     'Visibilidad y gestión operativa cruzada entre escrituras',
     true,
     false
-  );
+  )
+on conflict (nombre) do update set
+  descripcion = excluded.descripcion,
+  es_sistema = excluded.es_sistema,
+  es_predeterminado_invitacion = excluded.es_predeterminado_invitacion;
 
 -- ============================================================
 -- rol_permisos (asignación inicial por rol, spec.md → Assumptions)
@@ -313,6 +338,9 @@ with
         'marcar_presentado',
         'todas'
       ),
+      ('Administrador', 'avisos_sat', 'generar_xml', 'todas'),
+      ('Administrador', 'avisos_sat', 'registrar_acuse', 'todas'),
+      ('Administrador', 'avisos_sat', 'ceros', 'todas'),
       ('Administrador', 'ordenes_pago', 'ver', 'todas'),
       ('Administrador', 'ordenes_pago', 'crear', 'todas'),
       ('Administrador', 'ordenes_pago', 'editar', 'todas'),
@@ -363,6 +391,8 @@ with
       ('Auxiliar', 'avisos_sat', 'ver', 'propias'),
       ('Auxiliar', 'avisos_sat', 'crear', 'propias'),
       ('Auxiliar', 'avisos_sat', 'editar', 'propias'),
+      ('Auxiliar', 'avisos_sat', 'generar_xml', 'propias'),
+      ('Auxiliar', 'avisos_sat', 'registrar_acuse', 'propias'),
       ('Auxiliar', 'ordenes_pago', 'ver', 'propias'),
       ('Auxiliar', 'ordenes_pago', 'crear', 'propias'),
       ('Auxiliar', 'ordenes_pago', 'editar', 'propias'),
@@ -383,6 +413,10 @@ with
       ('Gestor', 'tramites', 'editar', 'todas'),
       ('Gestor', 'tramites', 'eliminar', 'todas'),
       ('Gestor', 'avisos_sat', 'ver', 'todas'),
+      ('Gestor', 'avisos_sat', 'crear', 'todas'),
+      ('Gestor', 'avisos_sat', 'generar_xml', 'todas'),
+      ('Gestor', 'avisos_sat', 'registrar_acuse', 'todas'),
+      ('Gestor', 'avisos_sat', 'ceros', 'todas'),
       ('Gestor', 'ordenes_pago', 'ver', 'todas'),
       ('Gestor', 'honorarios', 'ver', 'todas'),
       ('Gestor', 'georreferenciacion', 'ver', 'todas'),
@@ -399,7 +433,9 @@ select r.id, p.id, rp.alcance
 from rp
   join public.roles r on r.nombre = rp.rol_nombre
   join public.permisos p on p.modulo = rp.modulo
-  and p.accion = rp.accion;
+  and p.accion = rp.accion
+on conflict (rol_id, permiso_id) do update set
+  alcance = excluded.alcance;
 
 -- ============================================================
 -- Usuario Administrador inicial para desarrollo local

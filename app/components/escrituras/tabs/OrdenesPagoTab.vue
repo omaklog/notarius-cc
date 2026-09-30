@@ -9,8 +9,12 @@ import {
   getQuienCubreLabel,
 } from '~/utils/ordenesPagoUtils'
 import { useOrdenesPago } from '~/composables/useOrdenesPago'
+import { useNotificaciones } from '~/composables/useNotificaciones'
+import { useSupabaseClient } from '#imports'
 import OrdenPagoFormModal from '~/components/ordenesPago/OrdenPagoFormModal.vue'
 import OrdenPagoLiquidarModal from '~/components/ordenesPago/OrdenPagoLiquidarModal.vue'
+import RedactarNotificacionModal from '~/components/notificaciones/modal/RedactarNotificacionModal.vue'
+
 
 const props = withDefaults(
   defineProps<{
@@ -54,6 +58,60 @@ const errorCancelar = ref<string | null>(null)
 // Filtro rápido en tabla
 const busqueda = ref('')
 const filtroEstado = ref<string>('todos')
+
+// Notificaciones contextuales al compareciente
+const modalNotificarVisible = ref(false)
+const plantillaCodigoANotificar = ref<string>('ORDEN_PAGO_EMITIDA')
+const variablesNotificar = ref<Record<string, any>>({})
+const comparecienteANotificar = ref<{ id?: string; nombre: string; contacto: string; canal?: any } | undefined>()
+
+let plantillas = ref<any[]>([])
+try {
+  const notifComposable = useNotificaciones()
+  plantillas = notifComposable.plantillas
+  if (notifComposable.cargarPlantillas) {
+    notifComposable.cargarPlantillas()
+  }
+} catch {
+  // Entorno de test unitario sin plugin de notificaciones
+}
+
+async function abrirNotificarOrden(ord: OrdenPago) {
+  plantillaCodigoANotificar.value = ord.estado === 'pagado' ? 'PAGO_LIQUIDADO' : 'ORDEN_PAGO_EMITIDA'
+  variablesNotificar.value = {
+    folio_tramite: ord.folio,
+    dependencia: ord.dependencia?.sigla || 'Dependencia',
+    monto: formatearMonedaMXN(ord.monto),
+    concepto: ord.concepto,
+    linea_captura: ord.linea_captura || '',
+  }
+
+  try {
+    const supabase = useSupabaseClient()
+    const { data } = await supabase
+      .from('escritura_comparecientes')
+      .select('compareciente_id, comparecientes (id, nombre, email, telefono)')
+      .eq('escritura_id', props.escrituraId)
+      .limit(1)
+
+    if (data && data.length > 0 && (data[0] as any).comparecientes) {
+      const c = (data[0] as any).comparecientes
+      comparecienteANotificar.value = {
+        id: c.id,
+        nombre: c.nombre,
+        contacto: c.telefono || c.email || '',
+        canal: c.telefono ? 'whatsapp' : 'correo',
+      }
+    } else {
+      comparecienteANotificar.value = undefined
+    }
+  } catch {
+    comparecienteANotificar.value = undefined
+  }
+
+  modalNotificarVisible.value = true
+}
+
 
 // Feedback / Snackbars
 const snackbarVisible = ref(false)
@@ -411,6 +469,17 @@ async function confirmarCancelacion() {
                   Liquidar
                 </v-btn>
 
+                <!-- Botón Notificar al Cliente -->
+                <v-btn
+                  v-if="ord.estado !== 'cancelado'"
+                  icon="mdi-bell-outline"
+                  size="small"
+                  variant="text"
+                  color="primary"
+                  title="Notificar Orden al Cliente"
+                  @click="abrirNotificarOrden(ord)"
+                />
+
                 <!-- Menú de opciones adicionales -->
                 <v-menu location="bottom end">
                   <template #activator="{ props: menuProps }">
@@ -419,10 +488,17 @@ async function confirmarCancelacion() {
                   <v-list density="compact">
                     <v-list-item
                       v-if="ord.estado !== 'cancelado'"
+                      prepend-icon="mdi-bell-outline"
+                      title="Notificar al Cliente"
+                      @click="abrirNotificarOrden(ord)"
+                    />
+                    <v-list-item
+                      v-if="ord.estado !== 'cancelado'"
                       prepend-icon="mdi-pencil-outline"
                       title="Modificar Datos"
                       @click="abrirEditarOrden(ord)"
                     />
+
                     <v-list-item
                       v-if="ord.estado === 'pendiente' || ord.estado === 'en_tesoreria'"
                       prepend-icon="mdi-cancel"
@@ -454,6 +530,18 @@ async function confirmarCancelacion() {
       :orden="ordenALiquidar"
       @liquidado="onLiquidarOrden"
     />
+
+    <!-- Modal Notificar al Compareciente -->
+    <RedactarNotificacionModal
+      v-model="modalNotificarVisible"
+      :plantillas="plantillas"
+      :escritura-id-preseleccionada="escrituraId"
+      :compareciente-preseleccionado="comparecienteANotificar"
+      :plantilla-preseleccionada-codigo="plantillaCodigoANotificar"
+      :variables-precalculadas="variablesNotificar"
+      @enviado="mostrarNotificacion('Notificación enviada al compareciente con éxito')"
+    />
+
 
     <!-- Modal de Cancelación -->
     <v-dialog v-model="modalCancelarVisible" max-width="500px" persistent>

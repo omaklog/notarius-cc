@@ -8,10 +8,11 @@ import ExpedienteTab from '~/components/escrituras/tabs/ExpedienteTab.vue'
 import PldTab from '~/components/escrituras/tabs/PldTab.vue'
 import TramitesTab from '~/components/escrituras/tabs/TramitesTab.vue'
 import OrdenesPagoTab from '~/components/escrituras/tabs/OrdenesPagoTab.vue'
-import PlaceholderTab from '~/components/escrituras/tabs/PlaceholderTab.vue'
+import AvisosTab from '~/components/escrituras/tabs/AvisosTab.vue'
 import GeorreferenciacionTab from '~/components/escrituras/tabs/GeorreferenciacionTab.vue'
 import ProtocolizarButton from '~/components/escrituras/ProtocolizarButton.vue'
 import AnularDialog from '~/components/escrituras/AnularDialog.vue'
+import NotificacionesHistorialDialog from '~/components/notificaciones/modal/NotificacionesHistorialDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +34,7 @@ interface EscrituraDetalle {
 const escritura = ref<EscrituraDetalle | null>(null)
 const loading = ref(true)
 const tab = ref('comparecientes')
+const modalHistorialNotificacionesVisible = ref(false)
 
 function formatFecha(fecha: string | null | undefined): string {
   if (!fecha) return 'Sin fecha'
@@ -156,6 +158,16 @@ watch(tab, (nuevoTab) => {
         </div>
 
         <div class="d-flex align-center ga-2">
+          <v-btn
+            data-testid="btn-notificaciones-escritura"
+            variant="outlined"
+            color="primary"
+            class="text-none font-weight-medium rounded-lg"
+            prepend-icon="mdi-bell-ring-outline"
+            @click="modalHistorialNotificacionesVisible = true"
+          >
+            Avisos Notariales
+          </v-btn>
           <ProtocolizarButton ref="protocolizarBtnRef" v-if="esBorrador" :escritura-id="escrituraId" @protocolizada="onProtocolizada" />
           <AnularDialog v-if="esProtocolizada" :escritura-id="escrituraId" @anulada="cargar" />
         </div>
@@ -197,13 +209,21 @@ watch(tab, (nuevoTab) => {
             <TramitesTab :escritura-id="escrituraId" :acto-juridico-id="escritura?.actoJuridicoId" />
           </v-window-item>
           <v-window-item value="avisos">
-            <PlaceholderTab />
+            <AvisosTab
+              :escritura-id="escrituraId"
+              :estatus-escritura="escritura?.estatus"
+              @status-change="onCambioCumplimiento"
+            />
           </v-window-item>
           <v-window-item value="ordenes">
             <OrdenesPagoTab :escritura-id="escrituraId" />
           </v-window-item>
           <v-window-item value="honorarios">
-            <PlaceholderTab />
+            <HonorariosTab
+              :escritura-id="escrituraId"
+              :estatus-escritura="escritura.estatus"
+              @status-change="onCambioCumplimiento"
+            />
           </v-window-item>
           <v-window-item v-if="esTraslativo" value="georreferenciacion">
             <GeorreferenciacionTab
@@ -268,5 +288,13 @@ watch(tab, (nuevoTab) => {
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- Modal Historial de Notificaciones y Avisos de la Escritura -->
+    <NotificacionesHistorialDialog
+      v-if="modalHistorialNotificacionesVisible"
+      v-model="modalHistorialNotificacionesVisible"
+      :escritura-id="escrituraId"
+      :instrumento="escritura?.instrumento"
+    />
   </div>
 </template>

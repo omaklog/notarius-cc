@@ -123,6 +123,43 @@
       @limpiar="recargar"
     />
 
+    <!-- Filtro Rápido de Custodia Actual (T020) -->
+    <v-card variant="outlined" class="mb-4 pa-3 bg-surface rounded-lg">
+      <div class="d-flex align-center justify-space-between flex-wrap gap-3">
+        <div class="d-flex align-center gap-2 flex-wrap">
+          <span class="text-caption font-weight-bold text-grey-darken-2 mr-1">
+            <v-icon icon="mdi-account-switch" size="16" class="mr-1 text-primary" />
+            Custodia Actual:
+          </span>
+          <v-btn-toggle
+            v-model="filtroCustodia"
+            mandatory
+            density="compact"
+            color="primary"
+            variant="outlined"
+          >
+            <v-btn value="todos" size="small">Todos</v-btn>
+            <v-btn value="gestor" size="small" prepend-icon="mdi-briefcase-account">En manos del Gestor</v-btn>
+            <v-btn value="redactor" size="small" prepend-icon="mdi-file-document-edit">En manos del Redactor</v-btn>
+            <v-btn value="solventacion" size="small" color="warning" prepend-icon="mdi-alert-circle">Detenido / Solventación</v-btn>
+            <v-btn value="concluidos" size="small" color="success" prepend-icon="mdi-check-circle">Concluidos</v-btn>
+          </v-btn-toggle>
+        </div>
+
+        <div style="min-width: 250px;">
+          <v-text-field
+            v-model="buscadorCustodio"
+            placeholder="Buscar por custodio..."
+            density="compact"
+            variant="outlined"
+            hide-details
+            clearable
+            prepend-inner-icon="mdi-account-search"
+          />
+        </div>
+      </div>
+    </v-card>
+
     <!-- Tabla General de Trámites -->
     <v-card variant="outlined" class="rounded-lg">
       <v-data-table
@@ -186,6 +223,17 @@
           </v-chip>
         </template>
 
+        <!-- Custodia Actual -->
+        <template #item.custodia="{ item }">
+          <CustodiaTramiteBadge
+            :rol-custodio="item.custodia_actual_rol"
+            :custodio-nombre="item.custodio_nombre || item.responsable_nombre || 'Sin Asignar'"
+            :detenido-por-solventacion="item.detenido_por_solventacion"
+            :horas-en-custodia="item.horas_en_custodia || 0"
+            compacto
+          />
+        </template>
+
         <!-- Semáforo y Plazo -->
         <template #item.semaforo="{ item }">
           <div>
@@ -220,13 +268,6 @@
           </v-chip>
         </template>
 
-        <!-- Gestor Asignado -->
-        <template #item.responsable_nombre="{ item }">
-          <span class="text-caption font-weight-medium">
-            {{ item.responsable_nombre || 'Sin gestor asignado' }}
-          </span>
-        </template>
-
         <!-- Acciones -->
         <template #item.acciones="{ item }">
           <div class="d-flex align-center justify-end">
@@ -251,6 +292,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useTramites } from '~/composables/useTramites'
 import { calcularSemaforoTramite } from '~/utils/diasHabiles'
 import TramitesFiltros from '~/components/tramites/TramitesFiltros.vue'
+import CustodiaTramiteBadge from '~/components/tramites/CustodiaTramiteBadge.vue'
 import type {
   FiltrosTramites,
   FaseProcesal,
@@ -279,11 +321,14 @@ const headers = [
   { title: 'Folio / Volante', key: 'folio_dependencia', width: '170px' },
   { title: 'Trámite y Fase', key: 'tipo_tramite_nombre', minWidth: '220px' },
   { title: 'Dependencia', key: 'dependencia_sigla', width: '130px' },
+  { title: 'Custodia Actual', key: 'custodia', width: '190px' },
   { title: 'Semáforo y Plazo', key: 'semaforo', width: '160px' },
   { title: 'Estado', key: 'estado', width: '140px' },
-  { title: 'Gestor', key: 'responsable_nombre', width: '160px' },
   { title: 'Acción', key: 'acciones', sortable: false, align: 'end' as const, width: '130px' }
 ]
+
+const filtroCustodia = ref<'todos' | 'gestor' | 'redactor' | 'solventacion' | 'concluidos'>('todos')
+const buscadorCustodio = ref('')
 
 const conteoVerde = computed(() => {
   return tramites.value.filter((t) => {
@@ -307,7 +352,27 @@ const conteoRojo = computed(() => {
 })
 
 const tramitesFiltrados = computed(() => {
-  return tramites.value.map((t) => {
+  let lista = tramites.value
+
+  if (filtroCustodia.value === 'gestor') {
+    lista = lista.filter((t) => t.custodia_actual_rol === 'gestor' && !t.detenido_por_solventacion && t.estado !== 'concluido_favorable')
+  } else if (filtroCustodia.value === 'redactor') {
+    lista = lista.filter((t) => (t.custodia_actual_rol === 'redactor' || !t.custodia_actual_rol) && !t.detenido_por_solventacion && t.estado !== 'concluido_favorable')
+  } else if (filtroCustodia.value === 'solventacion') {
+    lista = lista.filter((t) => t.detenido_por_solventacion)
+  } else if (filtroCustodia.value === 'concluidos') {
+    lista = lista.filter((t) => t.estado === 'concluido_favorable')
+  }
+
+  if (buscadorCustodio.value?.trim()) {
+    const q = buscadorCustodio.value.toLowerCase().trim()
+    lista = lista.filter((t) =>
+      (t.custodio_nombre && t.custodio_nombre.toLowerCase().includes(q)) ||
+      (t.responsable_nombre && t.responsable_nombre.toLowerCase().includes(q))
+    )
+  }
+
+  return lista.map((t) => {
     const sem = calcularSemaforoTramite(t.fecha_limite_estimada, t.estado)
     return {
       ...t,

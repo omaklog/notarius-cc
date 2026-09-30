@@ -177,4 +177,38 @@ describe('OrdenesPagoTab.vue', () => {
     expect(btnNueva.exists()).toBe(true)
     expect(btnNueva.text()).toContain('Nueva Orden de Pago')
   })
+
+  it('abre el modal de notificaciones con la orden correspondiente al presionar Notificar', async () => {
+    mockOrdenes.value = [
+      {
+        id: 'ord-notif-1',
+        escritura_id: 'esc-123',
+        folio: 'ORD-2026-0099',
+        dependencia_id: 'dep-1',
+        concepto: 'Derechos de Inscripción RPP',
+        monto: 3450,
+        quien_cubre: 'cliente',
+        estado: 'pendiente',
+        created_at: '2026-08-01',
+        updated_at: '2026-08-01',
+        dependencia: { id: 'dep-1', sigla: 'RPP', nombre: 'Registro Público' },
+      },
+    ]
+
+    const vuetify = createTestVuetify()
+    const wrapper = mount(OrdenesPagoTab, {
+      props: {
+        escrituraId: 'esc-123',
+      },
+      global: { plugins: [vuetify] },
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.modalNotificarVisible).toBe(false)
+    await wrapper.vm.abrirNotificarOrden(mockOrdenes.value[0])
+    expect(wrapper.vm.modalNotificarVisible).toBe(true)
+    expect(wrapper.vm.plantillaCodigoANotificar).toBe('ORDEN_PAGO_EMITIDA')
+    expect(wrapper.vm.variablesNotificar.folio_tramite).toBe('ORD-2026-0099')
+  })
 })
+

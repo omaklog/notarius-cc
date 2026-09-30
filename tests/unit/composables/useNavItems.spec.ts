@@ -2,23 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { findActiveGroupLabel, useNavItems } from '@/composables/useNavItems'
 
 describe('useNavItems', () => {
-  it('exposes the 5 fixed groups from constitution.md §4', () => {
+  it('exposes the 4 fixed groups from navigation hierarchy', () => {
     const { groups } = useNavItems()
 
     expect(groups.map((g) => g.label)).toEqual([
       'Operación',
       'Cumplimiento',
       'Finanzas',
-      'Ubicación',
       'Sistema',
     ])
   })
 
-  it('covers the 12 business modules across all groups', () => {
+  it('covers the 11 business modules across all groups', () => {
     const { groups } = useNavItems()
     const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0)
 
-    expect(totalItems).toBe(12)
+    expect(totalItems).toBe(11)
   })
 
   it('gives every group and item an icon and a route', () => {
@@ -33,15 +32,15 @@ describe('useNavItems', () => {
     }
   })
 
-  it('groups Operación with Escrituras, Comparecientes, Expedientes and Trámites', () => {
+  it('groups Operación with Escrituras, Comparecientes, Trámites and Libro de Cotejos', () => {
     const { groups } = useNavItems()
     const operacion = groups.find((g) => g.label === 'Operación')
 
     expect(operacion?.items.map((i) => i.label)).toEqual([
       'Escrituras',
       'Comparecientes',
-      'Expedientes',
       'Trámites',
+      'Libro de Cotejos',
     ])
   })
 

@@ -187,6 +187,17 @@
           </div>
         </template>
 
+        <!-- Columna Custodia Actual -->
+        <template #item.custodia="{ item }">
+          <CustodiaTramiteBadge
+            :rol-custodio="item.custodia_actual_rol"
+            :custodio-nombre="item.custodio_nombre || item.responsable_nombre || 'Sin Asignar'"
+            :detenido-por-solventacion="item.detenido_por_solventacion"
+            :horas-en-custodia="item.horas_en_custodia || 0"
+            compacto
+          />
+        </template>
+
         <!-- Columna Semáforo de Plazos -->
         <template #item.semaforo="{ item }">
           <div>
@@ -240,6 +251,34 @@
         <!-- Columna Acciones -->
         <template #item.acciones="{ item }">
           <div class="d-flex align-center justify-end gap-1">
+            <!-- Turnado y Cadena de Custodia (Pasar Estafeta) -->
+            <v-tooltip :text="item.detenido_por_solventacion ? 'Solventar y Re-turnar al Gestor' : (item.custodia_actual_rol === 'gestor' ? 'Devolver / Gestionar Custodia' : 'Turnar a Gestor Notarial')" location="top">
+              <template #activator="{ props: tooltipProps }">
+                <v-btn
+                  v-bind="tooltipProps"
+                  :icon="item.detenido_por_solventacion ? 'mdi-alert-circle-check' : 'mdi-swap-horizontal-bold'"
+                  variant="text"
+                  size="small"
+                  :color="item.detenido_por_solventacion ? 'warning' : 'indigo'"
+                  @click="abrirTurnado(item)"
+                />
+              </template>
+            </v-tooltip>
+
+            <!-- Ver Bitácora de Turnado -->
+            <v-tooltip text="Ver Bitácora de Custodia" location="top">
+              <template #activator="{ props: tooltipProps }">
+                <v-btn
+                  v-bind="tooltipProps"
+                  icon="mdi-history"
+                  variant="text"
+                  size="small"
+                  color="blue-grey"
+                  @click="abrirBitacora(item)"
+                />
+              </template>
+            </v-tooltip>
+
             <!-- Marcar Concluido si está en proceso o ingresado -->
             <v-tooltip text="Marcar Concluido Favorable" location="top">
               <template #activator="{ props: tooltipProps }">
@@ -324,6 +363,26 @@
       @saved="onOrdenPagoGuardada"
     />
 
+    <!-- Modal de Turnado y Custodia -->
+    <TurnadoTramiteModal
+      v-model="dialogoTurnado"
+      :tramite-id="tramiteParaTurnar?.id || ''"
+      :escritura-id="escrituraId"
+      :tramite-nombre="tramiteParaTurnar?.tipo_tramite_nombre || ''"
+      :accion-inicial="accionTurnadoInicial"
+      :custodio-actual-nombre="tramiteParaTurnar?.custodio_nombre || ''"
+      @turnado-exitoso="onTurnadoExitoso"
+    />
+
+    <!-- Drawer / Diálogo de Bitácora de Turnado -->
+    <BitacoraTurnadoDrawer
+      v-model="dialogoBitacora"
+      :tramite-id="tramiteParaBitacora?.id"
+      :escritura-id="escrituraId"
+      :tramite-nombre="tramiteParaBitacora?.tipo_tramite_nombre"
+      :custodio-actual-nombre="tramiteParaBitacora?.custodio_nombre"
+    />
+
     <!-- Diálogo de Confirmación de Eliminación -->
     <v-dialog v-model="dialogoEliminar" max-width="450px">
       <v-card>
@@ -357,6 +416,9 @@ import TramitesTimeline from '~/components/tramites/TramitesTimeline.vue'
 import TramiteFormModal from '~/components/tramites/TramiteFormModal.vue'
 import TramitePrevencionModal from '~/components/tramites/TramitePrevencionModal.vue'
 import OrdenPagoFormModal from '~/components/ordenesPago/OrdenPagoFormModal.vue'
+import CustodiaTramiteBadge from '~/components/tramites/CustodiaTramiteBadge.vue'
+import TurnadoTramiteModal from '~/components/tramites/TurnadoTramiteModal.vue'
+import BitacoraTurnadoDrawer from '~/components/tramites/BitacoraTurnadoDrawer.vue'
 import type {
   FaseProcesal,
   EstadoTramite,
@@ -386,14 +448,42 @@ const eliminando = ref(false)
 const tramiteSeleccionado = ref<TramiteResumen | null>(null)
 const tramiteAEliminar = ref<TramiteResumen | null>(null)
 
+const dialogoTurnado = ref(false)
+const dialogoBitacora = ref(false)
+const tramiteParaTurnar = ref<TramiteResumen | null>(null)
+const tramiteParaBitacora = ref<TramiteResumen | null>(null)
+const accionTurnadoInicial = ref<'turnar' | 'devolver' | 'solventar' | 'concluir'>('turnar')
+
+function abrirTurnado(tramite: TramiteResumen) {
+  tramiteParaTurnar.value = tramite
+  if (tramite.detenido_por_solventacion) {
+    accionTurnadoInicial.value = 'solventar'
+  } else if (tramite.custodia_actual_rol === 'gestor') {
+    accionTurnadoInicial.value = 'devolver'
+  } else {
+    accionTurnadoInicial.value = 'turnar'
+  }
+  dialogoTurnado.value = true
+}
+
+function abrirBitacora(tramite: TramiteResumen) {
+  tramiteParaBitacora.value = tramite
+  dialogoBitacora.value = true
+}
+
+async function onTurnadoExitoso() {
+  await cargarTramitesEscritura(props.escrituraId)
+}
+
 const headers = [
   { title: 'Folio / Volante', key: 'folio_dependencia', width: '180px' },
   { title: 'Trámite y Fase', key: 'tipo_tramite_nombre', minWidth: '220px' },
   { title: 'Dependencia', key: 'dependencia_sigla', width: '150px' },
+  { title: 'Custodia Actual', key: 'custodia', width: '190px' },
   { title: 'Semáforo y Plazo', key: 'semaforo', width: '160px' },
   { title: 'Estado', key: 'estado', width: '140px' },
   { title: 'Derechos', key: 'orden_pago_id', width: '130px' },
-  { title: 'Acciones', key: 'acciones', sortable: false, align: 'end' as const, width: '160px' }
+  { title: 'Acciones', key: 'acciones', sortable: false, align: 'end' as const, width: '210px' }
 ]
 
 const conteoEnTramite = computed(() => {

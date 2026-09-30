@@ -1,16 +1,20 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.2.1 → 1.3.0
-Rationale: Adición (MINOR) del principio y lineamiento obligatorio de diseño previo
-           con Stitch (MCP) al crear pantallas, optimizando la visualización,
-           ergonomía y coherencia visual del frontend antes de su implementación.
+Version change: 1.3.0 → 1.4.0
+Rationale: Adición (MINOR) de la metodología Git-Flow como estándar obligatorio
+           de control de versiones, ramas y ciclo de vida de desarrollo,
+           estableciendo las ramas 'master', 'development', 'feature/*',
+           'release/*' y 'hotfix/*', e inclusión formal del módulo de Libro de
+           Cotejos en el catálogo de módulos.
 
 Modified principles: N/A
 Added sections:
-  - 2. Stack tecnológico: inclusión de Stitch (MCP) para diseño y prototipado UI.
-  - 7. Convenciones generales: principio obligatorio de diseño previo con Stitch.
-  - 8. Diseño de interfaces y pantallas (Stitch): flujo, parámetros y criterios de visualización.
+  - 9. Flujo de trabajo y ramas (Git-Flow): estructura de ramas, ciclo de vida e integración.
+Modified sections:
+  - 4. Lista de módulos: inclusión del módulo 13 (Libro de cotejos y certificaciones fuera de protocolo).
+  - 7. Convenciones generales: referencia explícita y obligatoria a Git-Flow.
+  - Renumeración de secciones subsecuentes: 10. Próximos pasos, 11. Gobernanza.
 Removed sections: ninguna
 
 Templates requiring updates:
@@ -18,8 +22,7 @@ Templates requiring updates:
   ✅ .specify/templates/spec-template.md — sin referencias desactualizadas.
   ✅ .specify/templates/tasks-template.md — sin referencias desactualizadas.
 
-Follow-up TODOs (deferidos, no bloquean esta versión):
-  - Proveedor de hosting para Docker en producción aún por definir.
+Follow-up TODOs: ninguna
 -->
 
 # Constitution — Sistema de Administración Notarial
@@ -61,6 +64,9 @@ ESCRITURA PÚBLICA (raíz)
 
 NOTIFICACIONES — servicio transversal orientado a eventos
  (correo / WhatsApp / SMS a clientes sobre pagos, avances de trámite, etc.)
+
+ACTAS FUERA DE PROTOCOLO (independientes)
+ └── Libro de Cotejos (cotejo de originales, compulsa, fojas, tantos, sello de autorizar)
 ```
 
 ## 4. Lista de módulos
@@ -77,6 +83,7 @@ NOTIFICACIONES — servicio transversal orientado a eventos
 10. **Notificaciones** (correo, WhatsApp, SMS — servicio transversal por eventos)
 11. **Reportes**
 12. **Administración general** (catálogos, datos de la notaría, UMA vigente)
+13. **Libro de cotejos y certificaciones** (actas fuera de protocolo)
 
 ## 5. Marco regulatorio — Cumplimiento PLD/UIF (LFPIORPI)
 
@@ -138,11 +145,12 @@ registro ante SAT (Art. 32 Bis CFF) antes de firmar el instrumento definitivo.
 
 - Auditoría: todo cambio relevante en Escrituras, Comparecientes, Órdenes de
   pago y Honorarios debe quedar trazado (quién, cuándo, qué cambió).
-- Consecutivos/folios: por definir por módulo (Escrituras, Trámites, Avisos).
+- Consecutivos/folios: por definir por módulo (Escrituras, Trámites, Avisos, Cotejos).
 - Roles y permisos: sistema dinámico, no fijo en código. Catálogo de permisos granular (módulo.acción) asignable a roles editables desde Administración General. Seed inicial de 3 roles (Administrador, Auxiliar, Gestor) con permisos y alcance (propias/todas las escrituras) predefinidos pero 100% ajustables después. Cada escritura tiene un responsable_id reasignable solo por quien tenga el permiso correspondiente — ver detalle completo en el spec de Usuarios, roles y permisos.
 - Separación contable: Órdenes de pago (dinero de paso a terceros) y
   Honorarios (ingreso propio de la notaría) se modelan en tablas separadas.
 - Diseño previo con Stitch: antes de codificar cualquier pantalla en el frontend, se debe solicitar el diseño a Stitch vía MCP con sus parámetros contextuales para optimizar la ergonomía y visualización de datos (ver Sección 8).
+- Control de versiones y ramas: observancia obligatoria de la metodología **Git-Flow** para todo cambio, feature, release y hotfix en el repositorio (ver Sección 9).
 - Internacionalización: no se requiere soporte multi-idioma. La interfaz,
   los datos y la documentación son en español (México) únicamente; no se
   agrega capa de i18n.
@@ -165,15 +173,30 @@ Al crear o modificar pantallas e interfaces de usuario en el frontend, rigen las
 3. **Mejora de visualización y ergonomía:** El objetivo indispensable del diseño en Stitch es explorar y validar una presentación visual limpia, moderna y con alta legibilidad antes de programar, evitando interfaces sobrecargadas o componentes desalineados.
 4. **Referencia de implementación:** El resultado generado en Stitch fungirá como la maqueta de referencia directa para la estructuración de componentes Vuetify, layout y comportamiento visual en la fase de implementación.
 
-## 9. Próximos pasos
+## 9. Flujo de trabajo y ramas (Git-Flow)
+
+El desarrollo del proyecto se rige obligatoriamente por la metodología **Git-Flow** para asegurar trazabilidad, aislamiento de cambios y estabilidad del código:
+
+1. **Ramas Principales:**
+   - `master` (o `main`): Contiene exclusivamente código en estado de producción estable. Cada cambio integrado en `master` debe corresponder a un release oficial y etiquetado con un tag de versión (SemVer `vX.Y.Z`).
+   - `development`: Rama de integración activa y continua. En ella convergen todas las características desarrolladas y probadas antes de ser promovidas a un release.
+2. **Ramas de Soporte y Ciclo de Vida:**
+   - **Feature branches (`feature/<id>-<nombre>` o `<id>-<nombre>`):** Se bifurcan siempre a partir de `development`. Cada módulo o especificación (ej. `16-libro-cotejos`) se desarrolla de forma aislada en su propia rama de feature. Solo se fusionan a `development` una vez completadas sus tareas y con la suite de pruebas unitarias pasando al 100% (cero regresiones).
+   - **Release branches (`release/vX.Y.Z`):** Se bifurcan a partir de `development` para preparar un nuevo lanzamiento a producción, permitiendo ajustes menores de documentación o configuración sin congelar el desarrollo de nuevas features. Una vez validada, la rama de release se fusiona tanto a `master` como de regreso a `development`.
+   - **Hotfix branches (`hotfix/vX.Y.Z`):** Se bifurcan directamente desde `master` para atender incidencias críticas en producción. Al resolverse, se fusionan tanto en `master` como en `development`.
+3. **Criterios de Calidad para Merge:**
+   - Todo merge hacia `development` o `master` requiere que la suite completa de pruebas unitarias (`npm test`) se encuentre 100% en verde.
+   - Los mensajes de confirmación deben seguir el estándar de Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `style:`).
+
+## 10. Próximos pasos
 
 Documentar cada módulo con `spec.md` → `plan.md` → `tasks.md` siguiendo
 spec-kit, en el orden: Comparecientes (incluye gate de Cumplimiento PLD) →
 Escrituras → Expedientes → Trámites → Avisos SAT/UIF → Órdenes de pago →
 Honorarios → Georreferenciación → Notificaciones → Reportes →
-Administración general.
+Administración general → Libro de cotejos y certificaciones.
 
-## 10. Gobernanza
+## 11. Gobernanza
 
 - Esta constitución tiene precedencia sobre cualquier práctica de desarrollo
   ad hoc; cualquier plan (`plan.md`) o tarea que la contradiga debe justificar
@@ -187,4 +210,4 @@ Administración general.
 - Cada enmienda debe generar un "Sync Impact Report" (comentario HTML al
   inicio del archivo) indicando qué cambió y qué plantillas se revisaron.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-09-14
+**Version**: 1.4.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-09-30

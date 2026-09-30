@@ -33,9 +33,21 @@
           <strong>Acto Traslativo de Dominio:</strong>
           Se requiere delimitar al menos un predio con geometría poligonal en el mapa para habilitar la protocolización de este instrumento.
         </div>
-        <v-chip size="small" color="warning" variant="flat" class="font-weight-medium">
-          Pendiente de Delimitar
-        </v-chip>
+        <div class="d-flex align-center gap-2">
+          <v-chip size="small" color="warning" variant="flat" class="font-weight-medium">
+            Pendiente de Delimitar
+          </v-chip>
+          <v-btn
+            size="small"
+            color="warning"
+            variant="tonal"
+            prepend-icon="mdi-map-marker-account-outline"
+            class="text-capitalize font-weight-bold"
+            @click="abrirNotificarUbicacionPredial"
+          >
+            Citar Compareciente
+          </v-btn>
+        </div>
       </div>
     </v-alert>
 
@@ -108,6 +120,19 @@
             @click="abrirModalReportePdf"
           >
             Cédula PDF
+          </v-btn>
+
+          <!-- Botón Citar para Ubicación Predial -->
+          <v-btn
+            color="info"
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-map-marker-account-outline"
+            class="text-capitalize font-weight-bold"
+            :disabled="guardando || cargando"
+            @click="abrirNotificarUbicacionPredial"
+          >
+            Citar para Ubicación
           </v-btn>
 
           <!-- Botón Pantalla Completa -->
@@ -441,6 +466,17 @@
         <v-btn variant="text" color="white" @click="snackbar.visible = false">Cerrar</v-btn>
       </template>
     </v-snackbar>
+
+    <!-- Modal Notificar al Compareciente para Ubicación Predial -->
+    <RedactarNotificacionModal
+      v-model="modalNotificarVisible"
+      :plantillas="plantillas"
+      :escritura-id-preseleccionada="escrituraId"
+      :compareciente-preseleccionado="comparecienteANotificar"
+      :plantilla-preseleccionada-codigo="plantillaCodigoANotificar"
+      :variables-precalculadas="variablesNotificar"
+      @enviado="mostrarMensaje('Citatorio para ubicación predial despachado con éxito')"
+    />
   </div>
 </template>
 
@@ -449,11 +485,13 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useSupabaseClient } from '#imports'
 import type { PredioItem, ColindanciaItem, GeoJSONPolygon } from '~/types/predios'
 import { usePredios } from '~/composables/usePredios'
+import { useNotificaciones } from '~/composables/useNotificaciones'
 import { calcularAreaPoligonoM2, calcularCentroide } from '~/utils/geometriaUtils'
 import { generarHtmlCedulaGeorreferenciacion } from '~/utils/pdfCedulaGeorreferenciacion'
 import PredioMapaLeaflet from '~/components/georreferenciacion/PredioMapaLeaflet.vue'
 import PredioColindanciasForm from '~/components/georreferenciacion/PredioColindanciasForm.vue'
 import PredioFachadaUpload from '~/components/georreferenciacion/PredioFachadaUpload.vue'
+import RedactarNotificacionModal from '~/components/notificaciones/modal/RedactarNotificacionModal.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -541,6 +579,69 @@ function mostrarMensaje(texto: string, color = 'success') {
     texto,
     color
   }
+}
+
+// Notificaciones contextuales al compareciente (Cita para Ubicación Predial)
+const modalNotificarVisible = ref(false)
+const plantillaCodigoANotificar = ref('CITA_FIRMA_WHATSAPP')
+const variablesNotificar = ref<Record<string, any>>({})
+const comparecienteANotificar = ref<{ id?: string; nombre: string; contacto: string; canal?: any } | undefined>()
+
+let plantillas = ref<any[]>([])
+try {
+  const notifComposable = useNotificaciones()
+  plantillas = notifComposable.plantillas
+  if (notifComposable.cargarPlantillas) {
+    notifComposable.cargarPlantillas()
+  }
+} catch {
+  // Test unitario sin composable de notificaciones
+}
+
+async function abrirNotificarUbicacionPredial() {
+  plantillaCodigoANotificar.value = 'CITA_FIRMA_WHATSAPP'
+  const etiqueta = predioForm.value.etiqueta || predioActivo.value?.etiqueta || 'Predio Principal'
+  const sup = predioForm.value.superficie_terreno_m2
+    ? `${formatearNumero(predioForm.value.superficie_terreno_m2)} m²`
+    : 'Superficie por definir'
+
+  variablesNotificar.value = {
+    etiqueta_predio: etiqueta,
+    superficie: sup,
+    numero_instrumento: datosEscritura.value?.instrumento || 'S/N',
+    acto: datosEscritura.value?.actos_juridicos?.nombre || 'Acto Notarial',
+    fecha_cita: 'en notaría para ubicar y delimitar el predio en sistema',
+  }
+
+  try {
+    const q = supabase.from?.('escritura_comparecientes')
+    if (q?.select) {
+      let qSelect = q.select('compareciente_id, comparecientes (id, nombre, email, telefono)')
+      if (qSelect?.eq) {
+        qSelect = qSelect.eq('escritura_id', props.escrituraId)
+      }
+      if (qSelect?.limit) {
+        qSelect = qSelect.limit(1)
+      }
+      const { data } = await qSelect
+
+      if (data && data.length > 0 && (data[0] as any).comparecientes) {
+        const c = (data[0] as any).comparecientes
+        comparecienteANotificar.value = {
+          id: c.id,
+          nombre: c.nombre,
+          contacto: c.telefono || c.email || '',
+          canal: c.telefono ? 'whatsapp' : 'correo',
+        }
+      } else {
+        comparecienteANotificar.value = undefined
+      }
+    }
+  } catch {
+    comparecienteANotificar.value = undefined
+  }
+
+  modalNotificarVisible.value = true
 }
 
 // Cargar predios y datos del instrumento al montar

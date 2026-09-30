@@ -3,6 +3,13 @@ definePageMeta({ middleware: 'require-admin' })
 
 const modulos = [
   {
+    titulo: 'Identidad Notarial y Fe Pública',
+    descripcion: 'Ficha oficial de la notaría, titularidad, identidad gráfica, sellos de autorizar y leyendas reglamentarias.',
+    icono: 'mdi-scale-balance',
+    ruta: '/administracion-general/identidad-notarial',
+    color: '#1B3A5F',
+  },
+  {
     titulo: 'Tipos de Identificación Oficial',
     descripcion: 'Configuración paramétrica de documentos de identidad, reglas de escaneo OCR y obligatoriedad de reverso.',
     icono: 'mdi-card-account-details-outline',
@@ -35,6 +42,13 @@ const modulos = [
     descripcion: 'Configuración paramétrica del pipeline de 17 pasos de gestoría, catálogo de dependencias oficiales y vinculación con órdenes de pago.',
     icono: 'mdi-format-list-checks',
     ruta: '/administracion-general/tramites-pasos',
+    color: '#1B3A5F',
+  },
+  {
+    titulo: 'Valores y Vigencias de la UMA',
+    descripcion: 'Histórico, vigencias y actualización de la Unidad de Medida y Actualización (UMA) para cálculos PLD y avisos SAT.',
+    icono: 'mdi-currency-usd',
+    ruta: '/administracion-general/uma',
     color: '#1B3A5F',
   },
 ]

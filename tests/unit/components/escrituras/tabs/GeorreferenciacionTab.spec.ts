@@ -108,6 +108,20 @@ describe('GeorreferenciacionTab.vue', () => {
               actos_juridicos: { nombre: 'Compraventa de Inmueble' }
             },
             error: null
+          }),
+          limit: vi.fn().mockResolvedValue({
+            data: [
+              {
+                compareciente_id: 'comp-1',
+                comparecientes: {
+                  id: 'comp-1',
+                  nombre: 'Juan Pérez García',
+                  email: 'juan@notaria.com',
+                  telefono: '5512345678'
+                }
+              }
+            ],
+            error: null
           })
         })
       }),
@@ -339,5 +353,106 @@ describe('GeorreferenciacionTab.vue', () => {
     expect(btnPlus).not.toBeNull()
     expect(btnMinus.disabled).toBe(false)
     expect(btnPlus.disabled).toBe(false)
+  })
+
+  it('abre el modal de notificaciones para citar al compareciente a ubicar el predio al pulsar Citar para Ubicación', async () => {
+    const wrapper = mount(GeorreferenciacionTab, {
+      props: {
+        escrituraId: 'esc-123'
+      },
+      global: {
+        plugins: [vuetify],
+        stubs: {
+          ClientOnly: { template: '<div><slot /></div>' },
+          PredioMapaLeaflet: {
+            template: '<div class="stub-mapa" />',
+            props: ['modelValue', 'predios', 'predioActivoId', 'editable']
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.vm.modalNotificarVisible).toBe(false)
+
+    const btnCitar = wrapper.findAll('button').find((b) => b.text().includes('Citar para Ubicación'))
+    expect(btnCitar).toBeDefined()
+
+    await btnCitar!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.modalNotificarVisible).toBe(true)
+    expect(wrapper.vm.plantillaCodigoANotificar).toBe('CITA_FIRMA_WHATSAPP')
+    expect(wrapper.vm.variablesNotificar.etiqueta_predio).toBe('Predio Principal')
+    expect(wrapper.vm.variablesNotificar.numero_instrumento).toBe(1234)
+    expect(wrapper.vm.comparecienteANotificar?.nombre).toBe('Juan Pérez García')
+    expect(wrapper.vm.comparecienteANotificar?.contacto).toBe('5512345678')
+    expect(wrapper.vm.comparecienteANotificar?.canal).toBe('whatsapp')
+  })
+
+  it('permite abrir el modal de notificación desde la advertencia de pendiente de delimitar', async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              instrumento: 5678,
+              anio: 2026,
+              volumen: 2,
+              fecha_celebracion: '2026-09-17',
+              objeto: 'Donación',
+              actos_juridicos: { nombre: 'Donación de Inmueble' }
+            },
+            error: null
+          }),
+          limit: vi.fn().mockResolvedValue({
+            data: [
+              {
+                compareciente_id: 'comp-9',
+                comparecientes: {
+                  id: 'comp-9',
+                  nombre: 'María López',
+                  email: 'maria@example.com',
+                  telefono: ''
+                }
+              }
+            ],
+            error: null
+          })
+        })
+      })
+    })
+
+    const wrapper = mount(GeorreferenciacionTab, {
+      props: {
+        escrituraId: 'esc-5678'
+      },
+      global: {
+        plugins: [vuetify],
+        stubs: {
+          ClientOnly: { template: '<div><slot /></div>' },
+          PredioMapaLeaflet: {
+            template: '<div class="stub-mapa" />',
+            props: ['modelValue', 'predios', 'predioActivoId', 'editable']
+          }
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const btnCitarAlerta = wrapper.findAll('button').find((b) => b.text().includes('Citar Compareciente'))
+    expect(btnCitarAlerta).toBeDefined()
+
+    await btnCitarAlerta!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.modalNotificarVisible).toBe(true)
+    expect(wrapper.vm.variablesNotificar.numero_instrumento).toBe(5678)
+    expect(wrapper.vm.comparecienteANotificar?.nombre).toBe('María López')
+    expect(wrapper.vm.comparecienteANotificar?.contacto).toBe('maria@example.com')
+    expect(wrapper.vm.comparecienteANotificar?.canal).toBe('correo')
   })
 })
