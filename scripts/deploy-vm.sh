@@ -171,7 +171,7 @@ echo "==> [5/5] Levantando contenedor Nuxt 4 (notarius-web)..."
 if [ "$SKIP_BUILD" = true ]; then
   docker compose up -d
 else
-  docker compose up -d --build
+  BUILDKIT_PROGRESS=plain docker compose up -d --build
 fi
 
 echo ""

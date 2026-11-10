@@ -5,15 +5,18 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Forzar resolución IPv4 primero para evitar que Node 22 intente salir por IPv6 sin ruta en la VM
+# y se quede colgado hasta agotar el network-timeout (100s)
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
+
 # Habilitar Corepack para Yarn
 RUN corepack enable
 
 # Copiar manifiestos de dependencias primero para aprovechar caché de capas
 COPY package.json yarn.lock ./
 
-# Instalar dependencias ignorando postinstall prematuro (nuxt prepare requiere nuxt.config.ts y ENV,
-# y el paquete dev 'supabase' intenta descargar su binario CLI que no se usa dentro del contenedor web)
-RUN yarn install --ignore-scripts --network-timeout 100000
+# Instalar dependencias ignorando postinstall prematuro y limitando concurrencia de sockets
+RUN yarn install --ignore-scripts --ignore-engines --network-concurrency 8 --network-timeout 300000
 
 # Copiar el código fuente de la aplicación
 COPY . .
