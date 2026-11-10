@@ -10,10 +10,10 @@ RUN corepack enable
 
 # Copiar manifiestos de dependencias primero para aprovechar caché de capas
 COPY package.json yarn.lock ./
-COPY app/shims ./app/shims
 
-# Instalar dependencias (incluye nuxt prepare en postinstall)
-RUN yarn install --frozen-lockfile
+# Instalar dependencias ignorando postinstall prematuro (nuxt prepare requiere nuxt.config.ts y ENV,
+# y el paquete dev 'supabase' intenta descargar su binario CLI que no se usa dentro del contenedor web)
+RUN yarn install --ignore-scripts --network-timeout 100000
 
 # Copiar el código fuente de la aplicación
 COPY . .
@@ -32,8 +32,8 @@ ENV SUPABASE_URL=${SUPABASE_URL} \
     SUPABASE_COOKIE_SECURE=${SUPABASE_COOKIE_SECURE} \
     NODE_ENV=production
 
-# Compilar aplicación Nuxt para producción (.output)
-RUN yarn build
+# Preparar tipos y compilar aplicación Nuxt para producción (.output)
+RUN npx nuxt prepare && yarn build
 
 # ==============================================================================
 # Stage 2: Runtime (Nitro Server ligero)
