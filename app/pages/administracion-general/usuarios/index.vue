@@ -19,6 +19,7 @@ const errorMessage = ref<string | null>(null)
 const showInviteDialog = ref(false)
 const inviteEmail = ref('')
 const inviteNombre = ref('')
+const invitePassword = ref('Password123!')
 const inviting = ref(false)
 
 async function cargarUsuarios(): Promise<void> {
@@ -40,15 +41,20 @@ async function invitar(): Promise<void> {
   try {
     await $fetch('/api/admin/invite-user', {
       method: 'POST',
-      body: { email: inviteEmail.value, nombreCompleto: inviteNombre.value || undefined },
+      body: {
+        email: inviteEmail.value,
+        password: invitePassword.value || undefined,
+        nombreCompleto: inviteNombre.value || undefined,
+      },
     })
     showInviteDialog.value = false
     inviteEmail.value = ''
     inviteNombre.value = ''
+    invitePassword.value = 'Password123!'
     await cargarUsuarios()
   } catch (e) {
     const err = e as { data?: { statusMessage?: string } }
-    errorMessage.value = err?.data?.statusMessage ?? 'No se pudo invitar al usuario.'
+    errorMessage.value = err?.data?.statusMessage ?? 'No se pudo crear el usuario.'
   } finally {
     inviting.value = false
   }
@@ -116,7 +122,7 @@ async function cambiarActivo(usuario: UsuarioRow, activo: boolean): Promise<void
 
     <v-dialog v-model="showInviteDialog" max-width="480">
       <v-card color="surface" elevation="8" rounded="lg">
-        <v-card-title>Invitar usuario</v-card-title>
+        <v-card-title>Nuevo usuario</v-card-title>
         <v-card-text>
           <v-text-field
             v-model="inviteEmail"
@@ -131,8 +137,19 @@ async function cambiarActivo(usuario: UsuarioRow, activo: boolean): Promise<void
             label="Nombre completo (opcional)"
             variant="outlined"
             density="comfortable"
+            class="mb-2"
           />
-          <v-btn color="primary" class="mt-2" :loading="inviting" @click="invitar">Enviar invitación</v-btn>
+          <v-text-field
+            v-model="invitePassword"
+            label="Contraseña inicial"
+            type="text"
+            variant="outlined"
+            density="comfortable"
+            hint="El usuario podrá iniciar sesión de inmediato sin correo de confirmación"
+            persistent-hint
+            class="mb-2"
+          />
+          <v-btn color="primary" class="mt-2" :loading="inviting" @click="invitar">Crear usuario</v-btn>
         </v-card-text>
       </v-card>
     </v-dialog>

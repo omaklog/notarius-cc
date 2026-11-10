@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: ['vuetify-nuxt-module', '@pinia/nuxt', '@nuxtjs/supabase'],
+  modules: ['vuetify-nuxt-module', '@pinia/nuxt', '@nuxtjs/supabase', '@nuxt/fonts'],
 
   runtimeConfig: {
     geminiApiKey: process.env.GEMINI_API_KEY || '',
@@ -18,7 +18,10 @@ export default defineNuxtConfig({
       exclude: [],
     },
     cookieOptions: {
-      secure: process.env.NODE_ENV === 'production',
+      secure:
+        process.env.SUPABASE_COOKIE_SECURE !== undefined
+          ? process.env.SUPABASE_COOKIE_SECURE === 'true'
+          : process.env.NODE_ENV === 'production',
     },
     types: false,
   },
@@ -38,15 +41,12 @@ export default defineNuxtConfig({
     },
   },
 
-  app: {
-    head: {
-      link: [
-        {
-          rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap',
-        },
-      ],
-    },
+  fonts: {
+    families: [
+      { name: 'IBM Plex Sans', provider: 'google', weights: [400, 500] },
+      { name: 'IBM Plex Mono', provider: 'google', weights: [400, 500] },
+      { name: 'Libre Caslon Display', provider: 'google', weights: [400] },
+    ],
   },
 
   vuetify: {

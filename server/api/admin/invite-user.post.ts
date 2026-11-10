@@ -3,6 +3,7 @@ import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/serve
 
 interface InviteUserBody {
   email: string
+  password?: string
   nombreCompleto?: string
   rolId?: string
 }
@@ -16,6 +17,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'El correo es obligatorio.' })
   }
 
+  const initialPassword = body.password?.trim() || process.env.DEFAULT_USER_PASSWORD || 'Password123!'
+  if (initialPassword.length < 6) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'La contraseña debe tener al menos 6 caracteres.',
+    })
+  }
+
   // Verifica que quien llama tiene administracion.acceso — nunca una
   // comprobación de rol por nombre (contracts/usuarios-roles-interface.md).
   const callerClient = await serverSupabaseClient(event)
@@ -25,17 +34,20 @@ export default defineEventHandler(async (event) => {
   })
 
   if (permisoError || !puedeInvitar) {
-    throw createError({ statusCode: 403, statusMessage: 'No tienes permiso para invitar usuarios.' })
+    throw createError({ statusCode: 403, statusMessage: 'No tienes permiso para crear usuarios.' })
   }
 
   const adminClient = serverSupabaseServiceRole(event)
 
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(body.email, {
-    data: body.nombreCompleto ? { full_name: body.nombreCompleto } : undefined,
+  const { data, error } = await adminClient.auth.admin.createUser({
+    email: body.email,
+    password: initialPassword,
+    email_confirm: true,
+    user_metadata: body.nombreCompleto ? { full_name: body.nombreCompleto } : undefined,
   })
 
   if (error || !data.user) {
-    throw createError({ statusCode: 400, statusMessage: error?.message ?? 'No se pudo invitar al usuario.' })
+    throw createError({ statusCode: 400, statusMessage: error?.message ?? 'No se pudo crear el usuario.' })
   }
 
   if (body.rolId) {

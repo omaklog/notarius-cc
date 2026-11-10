@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+# Script de despliegue y arranque para VM en Proxmox (Notarius-CC)
+# Uso:
+#   ./scripts/deploy-vm.sh [opciones]
+#
+# Opciones:
+#   --url <URL>       URL pública/Tailscale de Supabase (ej. http://100.64.0.10:54321 o https://api.tudominio.com)
+#   --https           Activa SUPABASE_COOKIE_SECURE=true (usar cuando se entra por Cloudflare Tunnel / HTTPS)
+#   --reset           Ejecuta `supabase db reset` (reconstruye migraciones y vuelve a cargar supabase/seed.sql)
+#   --skip-build      No reconstruye la imagen Docker de Nuxt (solo reinicia contenedor)
+# ==============================================================================
+
+SUPABASE_PUBLIC_URL=""
+COOKIE_SECURE=""
+DO_RESET=false
+SKIP_BUILD=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --url)
+      SUPABASE_PUBLIC_URL="$2"
+      shift 2
+      ;;
+    --https)
+      COOKIE_SECURE="true"
+      shift
+      ;;
+    --reset)
+      DO_RESET=true
+      shift
+      ;;
+    --skip-build)
+      SKIP_BUILD=true
+      shift
+      ;;
+    *)
+      echo "Opción no reconocida: $1"
+      exit 1
+      ;;
+  esac
+done
+
+echo "==> [1/5] Verificando prerrequisitos en la VM..."
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: Docker no está instalado o no está en el PATH."
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "ERROR: El demonio de Docker no está corriendo o tu usuario no pertenece al grupo 'docker'."
+  exit 1
+fi
+
+if [ ! -d "node_modules" ]; then
+  echo "==> Instalando dependencias del repositorio (incluye Supabase CLI fijada)..."
+  yarn install --frozen-lockfile
+fi
+
+echo "==> [2/5] Levantando stack de Supabase (Postgres, Auth, Storage, Kong, Studio)..."
+npx supabase start
+
+if [ "$DO_RESET" = true ]; then
+  echo "==> [2.1/5] Aplicando migraciones y cargando datos semilla (supabase/seed.sql)..."
+  npx supabase db reset
+fi
+
+echo "==> [3/5] Extrayendo credenciales locales de Supabase..."
+STATUS_ENV=$(npx supabase status -o env)
+
+ANON_KEY=$(echo "$STATUS_ENV" | grep -E '^ANON_KEY=' | cut -d'=' -f2- | tr -d '"')
+SERVICE_ROLE_KEY=$(echo "$STATUS_ENV" | grep -E '^SERVICE_ROLE_KEY=' | cut -d'=' -f2- | tr -d '"')
+JWT_SECRET=$(echo "$STATUS_ENV" | grep -E '^JWT_SECRET=' | cut -d'=' -f2- | tr -d '"')
+
+if [ -z "$ANON_KEY" ] || [ -z "$SERVICE_ROLE_KEY" ]; then
+  echo "ERROR: No se pudieron extraer ANON_KEY o SERVICE_ROLE_KEY de 'supabase status -o env'."
+  exit 1
+fi
+
+# Crear .env desde .env.example si no existe
+if [ ! -f ".env" ]; then
+  cp .env.example .env
+  echo "==> Archivo .env creado a partir de .env.example"
+fi
+
+# Función auxiliar para actualizar o insertar clave=valor en .env
+upsert_env() {
+  local key="$1"
+  local val="$2"
+  if grep -qE "^${key}=" .env; then
+    sed -i.bak "s|^${key}=.*|${key}=${val}|" .env && rm -f .env.bak
+  else
+    echo "${key}=${val}" >> .env
+  fi
+}
+
+echo "==> [4/5] Actualizando variables en .env..."
+upsert_env "SUPABASE_ANON_KEY" "$ANON_KEY"
+upsert_env "SUPABASE_KEY" "$ANON_KEY"
+upsert_env "SUPABASE_SERVICE_ROLE_KEY" "$SERVICE_ROLE_KEY"
+upsert_env "SUPABASE_SERVICE_KEY" "$SERVICE_ROLE_KEY"
+upsert_env "SUPABASE_JWT_SECRET" "$JWT_SECRET"
+
+if [ -n "$SUPABASE_PUBLIC_URL" ]; then
+  upsert_env "SUPABASE_URL" "$SUPABASE_PUBLIC_URL"
+fi
+
+if [ -n "$COOKIE_SECURE" ]; then
+  upsert_env "SUPABASE_COOKIE_SECURE" "$COOKIE_SECURE"
+fi
+
+CURRENT_URL=$(grep -E '^SUPABASE_URL=' .env | cut -d'=' -f2- || echo "http://localhost:54321")
+CURRENT_SECURE=$(grep -E '^SUPABASE_COOKIE_SECURE=' .env | cut -d'=' -f2- || echo "false")
+
+echo "    SUPABASE_URL           = ${CURRENT_URL}"
+echo "    SUPABASE_COOKIE_SECURE = ${CURRENT_SECURE}"
+
+echo "==> [5/5] Levantando contenedor Nuxt 4 (notarius-web)..."
+if [ "$SKIP_BUILD" = true ]; then
+  docker compose up -d
+else
+  docker compose up -d --build
+fi
+
+echo ""
+echo "=============================================================================="
+echo " Despliegue completado exitosamente"
+echo "=============================================================================="
+echo " - Aplicación Web (Nuxt 4) : Puerto 3000"
+echo " - Supabase API (Kong)     : Puerto 54321 (URL configurada: ${CURRENT_URL})"
+echo " - Supabase Studio         : Puerto 54323"
+echo " - Usuario Admin Semilla   : admin@notaria.local / Password123!"
+echo "=============================================================================="

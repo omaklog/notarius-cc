@@ -41,7 +41,7 @@ function handleToggleMenu(): void {
     <v-avatar v-if="displayLogo" :image="displayLogo" size="32" class="mr-2" />
     <v-icon v-else icon="mdi-domain" class="mr-2" aria-hidden="true" />
 
-    <v-toolbar-title class="text-truncate">
+    <v-toolbar-title class="text-truncate font-display">
       {{ displayTitle }}
     </v-toolbar-title>
 
