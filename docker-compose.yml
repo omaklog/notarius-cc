@@ -4,28 +4,28 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+        SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54331}
         SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
         SUPABASE_COOKIE_SECURE: ${SUPABASE_COOKIE_SECURE:-false}
     container_name: notarius-web
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-3010}:3000"
     env_file:
       - .env
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54331}
       SUPABASE_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       SUPABASE_COOKIE_SECURE: ${SUPABASE_COOKIE_SECURE:-false}
-      NUXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54321}
+      NUXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-http://localhost:54331}
       NUXT_PUBLIC_SUPABASE_KEY: ${SUPABASE_ANON_KEY}
       NUXT_SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

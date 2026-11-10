@@ -19,7 +19,7 @@ RUN yarn install --frozen-lockfile
 COPY . .
 
 # Argumentos de build para que @nuxtjs/supabase preconfigure las opciones base
-ARG SUPABASE_URL=http://localhost:54321
+ARG SUPABASE_URL=http://localhost:54331
 ARG SUPABASE_ANON_KEY=placeholder-anon-key
 ARG SUPABASE_SERVICE_ROLE_KEY=placeholder-service-role-key
 ARG SUPABASE_COOKIE_SECURE=false

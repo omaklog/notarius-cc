@@ -7,21 +7,33 @@ set -euo pipefail
 #   ./scripts/deploy-vm.sh [opciones]
 #
 # Opciones:
-#   --url <URL>       URL pública/Tailscale de Supabase (ej. http://100.64.0.10:54321 o https://api.tudominio.com)
-#   --https           Activa SUPABASE_COOKIE_SECURE=true (usar cuando se entra por Cloudflare Tunnel / HTTPS)
+#   --tailscale       Auto-detecta la IP de Tailscale de la VM y configura SUPABASE_URL=http://<IP_TS>:54331
+#   --url <URL>       URL pública/Tailscale de Supabase (ej. http://100.64.0.10:54331 o https://api.tudominio.com)
+#   --port <PUERTO>   Puerto del frontend Nuxt (por defecto: 3010)
+#   --https           Activa SUPABASE_COOKIE_SECURE=true (usar con Tailscale Serve HTTPS o Cloudflare Tunnel)
 #   --reset           Ejecuta `supabase db reset` (reconstruye migraciones y vuelve a cargar supabase/seed.sql)
 #   --skip-build      No reconstruye la imagen Docker de Nuxt (solo reinicia contenedor)
 # ==============================================================================
 
 SUPABASE_PUBLIC_URL=""
+APP_PORT=""
 COOKIE_SECURE=""
+AUTO_TAILSCALE=false
 DO_RESET=false
 SKIP_BUILD=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --tailscale)
+      AUTO_TAILSCALE=true
+      shift
+      ;;
     --url)
       SUPABASE_PUBLIC_URL="$2"
+      shift 2
+      ;;
+    --port)
+      APP_PORT="$2"
       shift 2
       ;;
     --https)
@@ -42,6 +54,22 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [ "$AUTO_TAILSCALE" = true ] && [ -z "$SUPABASE_PUBLIC_URL" ]; then
+  if command -v tailscale >/dev/null 2>&1; then
+    TS_IP=$(tailscale ip -4 | head -n 1 | tr -d '[:space:]')
+    if [ -n "$TS_IP" ]; then
+      SUPABASE_PUBLIC_URL="http://${TS_IP}:54331"
+      echo "==> IP de Tailscale detectada automáticamente: ${TS_IP}"
+    else
+      echo "ERROR: No se pudo obtener una IPv4 de Tailscale ('tailscale ip -4'). ¿Está conectado Tailscale?"
+      exit 1
+    fi
+  else
+    echo "ERROR: El comando 'tailscale' no está instalado en esta VM."
+    exit 1
+  fi
+fi
 
 echo "==> [1/5] Verificando prerrequisitos en la VM..."
 if ! command -v docker >/dev/null 2>&1; then
@@ -107,13 +135,19 @@ if [ -n "$SUPABASE_PUBLIC_URL" ]; then
   upsert_env "SUPABASE_URL" "$SUPABASE_PUBLIC_URL"
 fi
 
+if [ -n "$APP_PORT" ]; then
+  upsert_env "PORT" "$APP_PORT"
+fi
+
 if [ -n "$COOKIE_SECURE" ]; then
   upsert_env "SUPABASE_COOKIE_SECURE" "$COOKIE_SECURE"
 fi
 
-CURRENT_URL=$(grep -E '^SUPABASE_URL=' .env | cut -d'=' -f2- || echo "http://localhost:54321")
+CURRENT_URL=$(grep -E '^SUPABASE_URL=' .env | cut -d'=' -f2- || echo "http://localhost:54331")
+CURRENT_PORT=$(grep -E '^PORT=' .env | cut -d'=' -f2- || echo "3010")
 CURRENT_SECURE=$(grep -E '^SUPABASE_COOKIE_SECURE=' .env | cut -d'=' -f2- || echo "false")
 
+echo "    PORT                   = ${CURRENT_PORT}"
 echo "    SUPABASE_URL           = ${CURRENT_URL}"
 echo "    SUPABASE_COOKIE_SECURE = ${CURRENT_SECURE}"
 
@@ -128,8 +162,8 @@ echo ""
 echo "=============================================================================="
 echo " Despliegue completado exitosamente"
 echo "=============================================================================="
-echo " - Aplicación Web (Nuxt 4) : Puerto 3000"
-echo " - Supabase API (Kong)     : Puerto 54321 (URL configurada: ${CURRENT_URL})"
-echo " - Supabase Studio         : Puerto 54323"
+echo " - Aplicación Web (Nuxt 4) : Puerto ${CURRENT_PORT}"
+echo " - Supabase API (Kong)     : Puerto 54331 (URL configurada: ${CURRENT_URL})"
+echo " - Supabase Studio         : Puerto 54333"
 echo " - Usuario Admin Semilla   : admin@notaria.local / Password123!"
 echo "=============================================================================="
