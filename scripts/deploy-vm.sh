@@ -82,21 +82,37 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -d "node_modules" ]; then
-  echo "==> Instalando dependencias del repositorio (incluye Supabase CLI fijada)..."
-  yarn install --frozen-lockfile
+# Determinar cómo ejecutar Supabase CLI en el host (sin obligar a tener yarn en el host,
+# ya que Nuxt se compila dentro del contenedor Docker)
+if [ -x "./node_modules/.bin/supabase" ]; then
+  SUPABASE_CMD="./node_modules/.bin/supabase"
+elif command -v supabase >/dev/null 2>&1; then
+  SUPABASE_CMD="supabase"
+elif command -v npx >/dev/null 2>&1; then
+  SUPABASE_CMD="npx --yes supabase@2.110.0"
+else
+  echo "==> Instalando Supabase CLI en la VM..."
+  ARCH=$(dpkg --print-architecture 2>/dev/null || uname -m)
+  if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
+  if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi
+  TMP_DEB="/tmp/supabase_2.110.0_linux_${ARCH}.deb"
+  curl -fsSL "https://github.com/supabase/cli/releases/download/v2.110.0/supabase_2.110.0_linux_${ARCH}.deb" -o "$TMP_DEB"
+  sudo dpkg -i "$TMP_DEB"
+  rm -f "$TMP_DEB"
+  SUPABASE_CMD="supabase"
 fi
 
+echo "==> Usando comando Supabase: ${SUPABASE_CMD}"
 echo "==> [2/5] Levantando stack de Supabase (Postgres, Auth, Storage, Kong, Studio)..."
-npx supabase start
+$SUPABASE_CMD start
 
 if [ "$DO_RESET" = true ]; then
   echo "==> [2.1/5] Aplicando migraciones y cargando datos semilla (supabase/seed.sql)..."
-  npx supabase db reset
+  $SUPABASE_CMD db reset
 fi
 
 echo "==> [3/5] Extrayendo credenciales locales de Supabase..."
-STATUS_ENV=$(npx supabase status -o env)
+STATUS_ENV=$($SUPABASE_CMD status -o env)
 
 ANON_KEY=$(echo "$STATUS_ENV" | grep -E '^ANON_KEY=' | cut -d'=' -f2- | tr -d '"')
 SERVICE_ROLE_KEY=$(echo "$STATUS_ENV" | grep -E '^SERVICE_ROLE_KEY=' | cut -d'=' -f2- | tr -d '"')
